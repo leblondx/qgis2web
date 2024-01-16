@@ -124,12 +124,10 @@ class exportProject(qgis2webAlgorithm):
                     layerPopups = []
                     if layer.type() == QgsMapLayer.VectorLayer:
                         for field in layer.fields():
-                            fieldList = []
                             k = field.name()
-                            cProp = "qgis2web/popup/" + field.name()
+                            cProp = f"qgis2web/popup/{field.name()}"
                             v = layer.customProperty(cProp, "")
-                            fieldList.append(k.strip())
-                            fieldList.append(v.strip())
+                            fieldList = [k.strip(), v.strip()]
                             layerPopups.append(tuple(fieldList))
                     popup.append(OrderedDict(layerPopups))
                 except Exception:
@@ -247,11 +245,11 @@ class exportLayer(qgis2webAlgorithm):
                 inputTemplate)
 
     def getWriter(self, inputMapFormat):
-        if inputMapFormat.lower() == "leaflet":
-            writer = LeafletWriter()
-        else:
-            writer = OpenLayersWriter()
-        return writer
+        return (
+            LeafletWriter()
+            if inputMapFormat.lower() == "leaflet"
+            else OpenLayersWriter()
+        )
 
     def writerParams(self, writer, inputParams):
         writer.params["Data export"]["Exporter"] = inputParams[0]
@@ -379,10 +377,8 @@ class exportVector(exportLayer):
         popupList = []
         fields = inputPopup.split(",")
         for field in fields:
-            fieldList = []
             k, v = field.split(":")
-            fieldList.append(k.strip())
-            fieldList.append(v.strip())
+            fieldList = [k.strip(), v.strip()]
             popupList.append(tuple(fieldList))
 
         inputParams = self.getInputs(parameters, context)

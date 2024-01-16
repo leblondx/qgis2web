@@ -120,12 +120,12 @@ class FolderExporter(Exporter):
         return QObject.tr(translator, 'Export to folder')
 
     def configure(self, parent_widget=None):
-        new_folder = \
-            QFileDialog.getExistingDirectory(parent_widget,
-                                             self.tr("Choose export folder"),
-                                             self.folder,
-                                             QFileDialog.ShowDirsOnly)
-        if new_folder:
+        if new_folder := QFileDialog.getExistingDirectory(
+            parent_widget,
+            self.tr("Choose export folder"),
+            self.folder,
+            QFileDialog.ShowDirsOnly,
+        ):
             self.folder = new_folder
 
     def exportDirectory(self):
@@ -135,7 +135,7 @@ class FolderExporter(Exporter):
         if not feedback:
             feedback = Feedback()
         self.export_file = results.index_file
-        feedback.setCompleted('Exported to {}'.format(self.folder))
+        feedback.setCompleted(f'Exported to {self.folder}')
         return True
 
     def destinationUrl(self):
@@ -236,7 +236,7 @@ class FtpExporter(Exporter):
 
     def newTempFolder(self, base):
         stamp = datetime.now().strftime("%Y_%m_%d-%H_%M_%S_%f")
-        return os.path.join(base, 'qgis2web_' + stamp)
+        return os.path.join(base, f'qgis2web_{stamp}')
 
     @classmethod
     def type(cls):
@@ -345,9 +345,8 @@ class FtpExporter(Exporter):
                 current_path = os.path.join(path, f)
                 if os.path.isfile(current_path):
                     feedback.showFeedback('Uploading {}'.format(f))
-                    fh = open(f, 'rb')
-                    ftp.storbinary('STOR %s' % f, fh)
-                    fh.close()
+                    with open(f, 'rb') as fh:
+                        ftp.storbinary(f'STOR {f}', fh)
                     feedback.uploaded_count += 1
                     feedback.setProgress(
                         100 * feedback.uploaded_count / file_count)
@@ -461,7 +460,7 @@ class ExporterRegistry(QObject):
         """
         :return: tuple for use within getParams call
         """
-        return tuple([e.name() for e in self.exporters.values()])
+        return tuple(e.name() for e in self.exporters.values())
 
 
 # canonical instance.

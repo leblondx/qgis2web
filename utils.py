@@ -172,7 +172,7 @@ def writeTmpLayer(layer, restrictToExtent, iface, extent):
     uri = TYPE_MAP[layer.wkbType()]
     crs = layer.crs()
     if crs.isValid():
-        uri += '?crs=' + crs.authid()
+        uri += f'?crs={crs.authid()}'
     for field in usedFields:
         fieldIndex = layer.fields().indexFromName(
             layer.fields().field(field).name())
@@ -180,12 +180,12 @@ def writeTmpLayer(layer, restrictToExtent, iface, extent):
         fieldType = layer.fields().field(field).type()
         fieldName = layer.fields().field(field).name()
         if (editorWidget == 'Hidden'):
-            fieldName = "q2wHide_" + fieldName
-        if fieldType == QVariant.Double or fieldType == QVariant.Int:
+            fieldName = f"q2wHide_{fieldName}"
+        if fieldType in [QVariant.Double, QVariant.Int]:
             fieldType = "double"
         else:
             fieldType = "string"
-        uri += '&field=' + fieldName + ":" + fieldType
+        uri += f'&field={fieldName}:{fieldType}'
     newlayer = QgsVectorLayer(uri, layer.name(), 'memory')
     writer = newlayer.dataProvider()
     outFeat = QgsFeature()
@@ -208,8 +208,7 @@ def writeTmpLayer(layer, restrictToExtent, iface, extent):
     for feature in features:
         if feature.geometry() is not None:
             outFeat.setGeometry(feature.geometry())
-        attrs = [feature[f] for f in usedFields]
-        if attrs:
+        if attrs := [feature[f] for f in usedFields]:
             outFeat.setAttributes(attrs)
         writer.addFeatures([outFeat])
     return newlayer
@@ -222,18 +221,18 @@ def exportLayers(iface, layers, folder, precision, optimize, popupField, json,
     QDir().mkpath(layersFolder)
     for count, (layer, encode2json, popup) in enumerate(zip(layers, json,
                                                             popupField)):
-        sln = safeName(layer.name()) + "_" + str(count)
+        sln = f"{safeName(layer.name())}_{str(count)}"
         vts = layer.customProperty("VectorTilesReader/vector_tile_source")
         if (layer.type() == layer.VectorLayer and vts is None and
                 (layer.providerType() != "WFS" or encode2json)):
-            feedback.showFeedback('Exporting %s to JSON...' % layer.name())
+            feedback.showFeedback(f'Exporting {layer.name()} to JSON...')
             crs = QgsCoordinateReferenceSystem("EPSG:4326")
             exportVector(layer, sln, layersFolder, restrictToExtent,
                          iface, extent, precision, crs, optimize)
             feedback.completeStep()
         elif (layer.type() == layer.RasterLayer and
                 layer.providerType() != "wms"):
-            feedback.showFeedback('Exporting %s as raster...' % layer.name())
+            feedback.showFeedback(f'Exporting {layer.name()} as raster...')
             exportRaster(layer, count, layersFolder, feedback, iface, matchCRS)
             feedback.completeStep()
     feedback.completeStep()
@@ -245,17 +244,17 @@ def exportVector(layer, sln, layersFolder, restrictToExtent, iface,
     cleanLayer = writeTmpLayer(layer, restrictToExtent, iface, extent)
     if is25d(layer, canvas, restrictToExtent, extent):
         add25dAttributes(cleanLayer, layer, canvas)
-    tmpPath = os.path.join(layersFolder, sln + ".json")
-    path = os.path.join(layersFolder, sln + ".js")
+    tmpPath = os.path.join(layersFolder, f"{sln}.json")
+    path = os.path.join(layersFolder, f"{sln}.js")
     options = []
     if precision != "maintain":
-        options.append("COORDINATE_PRECISION=" + str(precision))
+        options.append(f"COORDINATE_PRECISION={str(precision)}")
     e, err = QgsVectorFileWriter.writeAsVectorFormat(cleanLayer, tmpPath,
                                                      "utf-8", crs, 'GeoJson',
                                                      0, layerOptions=options)
     if e == QgsVectorFileWriter.NoError:
         with open(path, mode="w", encoding="utf8") as f:
-            f.write("var %s = " % ("json_" + sln))
+            f.write(f"var json_{sln} = ")
             with open(tmpPath, encoding="utf8") as tmpFile:
                 for line in tmpFile:
                     if minify:
@@ -265,14 +264,15 @@ def exportVector(layer, sln, layersFolder, restrictToExtent, iface,
         os.remove(tmpPath)
     else:
         QgsMessageLog.logMessage(
-            "Could not write json file {}: {}".format(tmpPath, err),
+            f"Could not write json file {tmpPath}: {err}",
             "qgis2web",
-            level=Qgis.Critical)
+            level=Qgis.Critical,
+        )
         return
 
     fields = layer.fields()
     for field in fields:
-        exportImages(layer, field.name(), layersFolder + "/tmp.tmp")
+        exportImages(layer, field.name(), f"{layersFolder}/tmp.tmp")
 
 
 def add25dAttributes(cleanLayer, layer, canvas):
@@ -324,11 +324,11 @@ def add25dAttributes(cleanLayer, layer, canvas):
 
 
 def exportRaster(layer, count, layersFolder, feedback, iface, matchCRS):
-    feedback.showFeedback("Exporting %s to PNG..." % layer.name())
+    feedback.showFeedback(f"Exporting {layer.name()} to PNG...")
     name_ts = safeName(layer.name()) + str(count) + str(int(time.time()))
 
     # We need to create a new file to export style
-    piped_file = os.path.join(tempfile.gettempdir(), name_ts + '_piped.tif')
+    piped_file = os.path.join(tempfile.gettempdir(), f'{name_ts}_piped.tif')
 
     piped_extent = layer.extent()
     # piped_width = layer.height()
@@ -346,9 +346,9 @@ def exportRaster(layer, count, layersFolder, feedback, iface, matchCRS):
     file_writer.writeRaster(pipe, piped_height, -1, piped_extent, piped_crs)
 
     # Export layer as PNG
-    out_raster = os.path.join(layersFolder,
-                              safeName(layer.name()) + "_" +
-                              str(count) + ".png")
+    out_raster = os.path.join(
+        layersFolder, f"{safeName(layer.name())}_{str(count)}.png"
+    )
 
     projectCRS = iface.mapCanvas().mapSettings().destinationCrs()
     if not (matchCRS and layer.crs() == projectCRS):
@@ -368,8 +368,7 @@ def exportRaster(layer, count, layersFolder, feedback, iface, matchCRS):
                                  str(extentRep.yMaximum())])
 
         # Reproject in 3857
-        piped_3857 = os.path.join(tempfile.gettempdir(),
-                                  name_ts + '_piped_3857.tif')
+        piped_3857 = os.path.join(tempfile.gettempdir(), f'{name_ts}_piped_3857.tif')
         # qgis_version = Qgis.QGIS_VERSION
 
         old_stdout = sys.stdout
@@ -484,16 +483,13 @@ def is25d(layer, canvas, restrictToExtent, extent):
     symbols = []
     if isinstance(renderer, QgsCategorizedSymbolRenderer):
         categories = renderer.categories()
-        for category in categories:
-            symbols.append(category.symbol())
+        symbols.extend(category.symbol() for category in categories)
     elif isinstance(renderer, QgsGraduatedSymbolRenderer):
         ranges = renderer.ranges()
-        for range in ranges:
-            symbols.append(range.symbol())
+        symbols.extend(range.symbol() for range in ranges)
     elif isinstance(renderer, QgsRuleBasedRenderer):
         rules = renderer.rootRule().children()
-        for rule in rules:
-            symbols.append(rule.symbol())
+        symbols.extend(rule.symbol() for rule in rules)
     else:
         renderContext = QgsRenderContext.fromMapSettings(canvas.mapSettings())
         fields = layer.fields()
@@ -622,17 +618,13 @@ def exportImages(layer, field, layerFileName):
 def handleHiddenField(layer, field):
     fieldIndex = layer.fields().indexFromName(field)
     editorWidget = layer.editorWidgetSetup(fieldIndex).type()
-    if (editorWidget == 'Hidden'):
-        fieldName = "q2wHide_" + field
-    else:
-        fieldName = field
-    return fieldName
+    return f"q2wHide_{field}" if (editorWidget == 'Hidden') else field
 
 
 def getRGBAColor(color, alpha):
     r, g, b, a = color.split(",")
     a = (float(a) / 255) * alpha
-    return "'rgba(%s)'" % ",".join([r, g, b, str(a)])
+    return f"""'rgba({",".join([r, g, b, str(a)])})'"""
 
 
 def boilType(fieldType):
@@ -669,19 +661,17 @@ def returnFilterValues(layer_list, fieldName, fieldType):
                 if boilType(f.typeName()) == fieldType:
                     if f.name() == fieldName:
                         iterator = layer.getFeatures()
-                        for feature in iterator:
-                            if feature[fieldName] is not None:
-                                filterValues.append(feature[fieldName])
-    if filterValues == []:
+                        filterValues.extend(
+                            feature[fieldName]
+                            for feature in iterator
+                            if feature[fieldName] is not None
+                        )
+    if not filterValues:
         return
     if fieldType == "str":
-        cleanFilterValues = list(dict.fromkeys(filterValues))
-        cleanFilterValues.sort()
+        cleanFilterValues = sorted(dict.fromkeys(filterValues))
     if fieldType == "int":
-        cleanFilterValues = [min(filterValues) if min(filterValues) >= 0
-                             else 0,
-                             max(filterValues) if max(filterValues) >= 0
-                             else 0]
+        cleanFilterValues = [max(min(filterValues), 0), max(max(filterValues), 0)]
         if cleanFilterValues[0] == cleanFilterValues[1]:
             cleanFilterValues[1] = cleanFilterValues[0] + 1
     if fieldType in ["date", "time", "real", "datetime"]:

@@ -11,10 +11,10 @@ def convert(fileA, fileB):
     extA = os.path.splitext(fileA)[1][1:]
     extB = os.path.splitext(fileB)[1][1:]
     if extA not in _exts:
-        print("Unsupported style type: '%s'" % extA)
+        print(f"Unsupported style type: '{extA}'")
         return
     if extB not in _exts:
-        print("Unsupported style type: '%s'" % ext)
+        print(f"Unsupported style type: '{ext}'")
         return
 
     with open(fileA) as f:

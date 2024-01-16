@@ -42,7 +42,7 @@ def saveLayerStyleAsZippedSld(layer, filename):
     for icon in icons.keys():
         if icon:
             z.write(icon, os.path.basename(icon))
-    z.writestr(layer.name() + ".sld", sldstring)
+    z.writestr(f"{layer.name()}.sld", sldstring)
     z.close()
     return warnings
 
@@ -89,10 +89,10 @@ def layerStyleAsMapfileFolder(layer, folder, additional=None):
     symbols = mapserver.fromgeostyler.convertDictToMapfile(
         {"SYMBOLS": mserverSymbolsDict}
     )
-    filename = os.path.join(folder, layer.name() + ".txt")
+    filename = os.path.join(folder, f"{layer.name()}.txt")
     with open(filename, "w", encoding="utf-8") as f:
         f.write(mapfile)
-    filename = os.path.join(folder, layer.name() + "_symbols.txt")
+    filename = os.path.join(folder, f"{layer.name()}_symbols.txt")
     with open(filename, "w", encoding="utf-8") as f:
         f.write(symbols)
     for icon in icons:
@@ -137,8 +137,8 @@ def saveSpritesSheet(icons, folder):
         iconName = os.path.splitext(os.path.basename(iconPath))[0]
         sprites[iconName] = saveSymbolLayerSprite(sl)
     if sprites:
-        height = max([s.height() for s, s2x in sprites.values()])
-        width = sum([s.width() for s, s2x in sprites.values()])
+        height = max(s.height() for s, s2x in sprites.values())
+        width = sum(s.width() for s, s2x in sprites.values())
         img = QImage(width, height, QImage.Format_ARGB32)
         img.fill(QColor(Qt.transparent))
         img2x = QImage(width * 2, height * 2, QImage.Format_ARGB32)

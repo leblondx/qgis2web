@@ -29,7 +29,7 @@ def exportStyles(layers, folder, clustered, feedback):
     vtStyles = {}
     mapUnitLayers = []
     for count, (layer, cluster) in enumerate(zip(layers, clustered)):
-        sln = safeName(layer.name()) + "_" + str(count)
+        sln = f"{safeName(layer.name())}_{str(count)}"
         if layer.type() != layer.VectorLayer:
             continue
         pattern = ""
@@ -91,7 +91,7 @@ def exportStyles(layers, folder, clustered, feedback):
                                   traceback.format_exc()))
 
         if vts is None:
-            path = os.path.join(stylesFolder, sln + "_style.js")
+            path = os.path.join(stylesFolder, f"{sln}_style.js")
 
             with codecs.open(path, "w", "utf-8") as f:
                 f.write('''%(defs)s
@@ -100,7 +100,7 @@ var style_%(name)s = %(style)s;
 %(setPattern)s''' %
                         {"defs": defs, "pattern": pattern, "name": sln,
                          "style": style, "setPattern": setPattern})
-        elif style != "" and style != "''":
+        elif style not in ["", "''"]:
             new_vtStyle = defs
             new_vtStyle += "if (feature.get('layer') == "
             new_vtStyle += """'%s' && feature.getGeometry().getType() == '%s'){
@@ -118,7 +118,7 @@ var style_%(name)s = %(style)s;
     for k, v in vtStyles.items():
         styleName = safeName(k)
         styleString = v
-        path = os.path.join(stylesFolder, styleName + "_style.js")
+        path = os.path.join(stylesFolder, f"{styleName}_style.js")
 
         with codecs.open(path, "w", "utf-8") as f:
             f.write('''
@@ -135,28 +135,26 @@ def getLabels(layer, folder, sln):
         palyr = labelling.settings()
         if palyr and palyr.fieldName and palyr.fieldName != "":
             labelField = palyr.fieldName
-            if labelField != "":
-                if str(layer.customProperty(
-                        "labeling/isExpression")).lower() == "true":
-                    exprFilename = os.path.join(folder, "resources",
-                                                "qgis2web_expressions.js")
-                    fieldName = layer.customProperty("labeling/fieldName")
-                    name = compile_to_file(fieldName, "label_%s" % sln,
-                                           "OpenLayers3", exprFilename)
-                    js = "%s(context)" % (name)
-                    js = js.strip()
-                    labelText = js
-                else:
-                    fieldIndex = layer.fields().indexFromName(
-                        labelField)
-                    # editFormConfig = layer.editFormConfig()
-                    editorWidget = layer.editorWidgetSetup(fieldIndex).type()
-                    if (editorWidget == 'Hidden'):
-                        labelField = "q2wHide_" + labelField
-                    labelText = ('feature.get("%s")' %
-                                 labelField.replace('"', '\\"'))
-            else:
+            if labelField == "":
                 labelText = '""'
+            elif str(layer.customProperty(
+                        "labeling/isExpression")).lower() == "true":
+                exprFilename = os.path.join(folder, "resources",
+                                            "qgis2web_expressions.js")
+                fieldName = layer.customProperty("labeling/fieldName")
+                name = compile_to_file(fieldName, f"label_{sln}", "OpenLayers3", exprFilename)
+                js = f"{name}(context)"
+                js = js.strip()
+                labelText = js
+            else:
+                fieldIndex = layer.fields().indexFromName(
+                    labelField)
+                # editFormConfig = layer.editFormConfig()
+                editorWidget = layer.editorWidgetSetup(fieldIndex).type()
+                if (editorWidget == 'Hidden'):
+                    labelField = f"q2wHide_{labelField}"
+                labelText = ('feature.get("%s")' %
+                             labelField.replace('"', '\\"'))
         else:
             labelText = '""'
     else:
@@ -197,8 +195,7 @@ def getLabelFormat(layer):
         else:
             labelRes = ""
         labelBuffer = labelFormat.buffer()
-        buffer = labelBuffer.enabled()
-        if buffer:
+        if buffer := labelBuffer.enabled():
             bufferColor = labelBuffer.color().name()
             bufferWidth = labelBuffer.size()
     else:
@@ -213,10 +210,10 @@ def singleSymbol(renderer, stylesFolder, layer_alpha, sln, legendFolder,
      useMapUnits) = getSymbolAsStyle(symbol, stylesFolder,
                                      layer_alpha, renderer, sln, layer,
                                      feedback)
-    style = "var style = " + style
+    style = f"var style = {style}"
     legendIcon = QgsSymbolLayerUtils.symbolPreviewPixmap(
         symbol, QSize(16, 16))
-    legendIcon.save(os.path.join(legendFolder, sln + ".png"))
+    legendIcon.save(os.path.join(legendFolder, f"{sln}.png"))
     value = 'var value = ""'
     return (style, pattern, setPattern, value, useMapUnits)
 
@@ -234,8 +231,7 @@ function categories_%s(feature, value, size, resolution, labelText,
     for cnt, cat in enumerate(renderer.categories()):
         legendIcon = QgsSymbolLayerUtils.symbolPreviewPixmap(cat.symbol(),
                                                              QSize(16, 16))
-        legendIcon.save(os.path.join(legendFolder,
-                                     sln + "_" + str(cnt) + ".png"))
+        legendIcon.save(os.path.join(legendFolder, f"{sln}_{str(cnt)}.png"))
         if (cat.value() is not None and cat.value() != ""):
             categoryStr = "case '%s':" % str(cat.value()).replace("'", "\\'")
         else:
@@ -268,8 +264,7 @@ def graduated(layer, renderer, legendFolder, sln, stylesFolder, layer_alpha,
     for cnt, ran in enumerate(renderer.ranges()):
         legendIcon = QgsSymbolLayerUtils.symbolPreviewPixmap(
             ran.symbol(), QSize(16, 16))
-        legendIcon.save(os.path.join(
-            legendFolder, sln + "_" + str(cnt) + ".png"))
+        legendIcon.save(os.path.join(legendFolder, f"{sln}_{str(cnt)}.png"))
         (symbolstyle, pattern, setPattern,
          useMapUnits) = getSymbolAsStyle(ran.symbol(), stylesFolder,
                                          layer_alpha, renderer, sln, layer,
@@ -337,15 +332,12 @@ def ruleBased(renderer, folder, stylesFolder, layer_alpha, sln, layer,
 
 def getValue(layer, renderer):
     classAttr = handleHiddenField(layer, renderer.classAttribute())
-    value = ('var value = feature.get("%s");' % classAttr)
-    return value
+    return f'var value = feature.get("{classAttr}");'
 
 
 def getStyle(style, cluster, labelRes, labelText, sln, size,
              face, color, bufferColor, bufferWidth, value, geom):
-    placement = "point"
-    if geom == "LineString":
-        placement = "line"
+    placement = "line" if geom == "LineString" else "point"
     this_style = '''function(feature, resolution){
     var context = {
         feature: feature,
@@ -402,8 +394,12 @@ def getStyle(style, cluster, labelRes, labelText, sln, size,
 
     this_style += '''
     return style;
-}''' % {"cache": "styleCache_" + sln, "size": size, "face": face,
-        "color": color}
+}''' % {
+        "cache": f"styleCache_{sln}",
+        "size": size,
+        "face": face,
+        "color": color,
+    }
     return this_style
 
 

@@ -107,10 +107,7 @@ def getDefaultParams():
                 else:
                     settings[param] = value[0]
             if isinstance(value, list):
-                if param == 'Attribute filter':
-                    settings[param] = value[0]
-                else:
-                    settings[param] = value[0]
+                settings[param] = value[0]
             if param in ('Widget Icon', 'Widget Background'):
                 settings[param] = value.color().name()
     params['Appearance']['Search layer'] = None

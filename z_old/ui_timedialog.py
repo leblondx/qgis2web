@@ -83,9 +83,8 @@ class Ui_TimeDialog(object):
                     if layer_parent.parent() is None:
                         item = TreeLayerItem2(layer, self.layersTree, dlg)
                         self.layers_item.addChild(item)
-                    else:
-                        if layer_parent not in tree_groups:
-                            tree_groups.append(layer_parent)
+                    elif layer_parent not in tree_groups:
+                        tree_groups.append(layer_parent)
                 except:
                     # print "Except: " + layer.name()
                     # print "Unexpected error:", sys.exc_info()[0]
@@ -153,8 +152,7 @@ class TreeLayerItem2(QTreeWidgetItem):
             self.timeFromItem.setText(0, "Time from")
             self.timeFromCombo = QComboBox()
             timeFromOptions = ["No time"]
-            for f in self.layer.pendingFields():
-                timeFromOptions.append("FIELD:" + f.name())
+            timeFromOptions.extend(f"FIELD:{f.name()}" for f in self.layer.pendingFields())
             for option in timeFromOptions:
                 self.timeFromCombo.addItem(option)
             self.addChild(self.timeFromItem)
@@ -169,8 +167,7 @@ class TreeLayerItem2(QTreeWidgetItem):
             self.timeToItem.setText(0, "Time to")
             self.timeToCombo = QComboBox()
             timeToOptions = ["No time"]
-            for f in self.layer.pendingFields():
-                timeToOptions.append("FIELD:" + f.name())
+            timeToOptions.extend(f"FIELD:{f.name()}" for f in self.layer.pendingFields())
             for option in timeToOptions:
                 self.timeToCombo.addItem(option)
             self.addChild(self.timeToItem)
@@ -187,10 +184,7 @@ class TreeLayerItem2(QTreeWidgetItem):
         try:
             idx = self.timeFromCombo.currentIndex()
             #print """IDX: """ + str(idx)
-            if idx < 1:
-                timefrom = idx
-            else:
-                timefrom = self.timeFromCombo.currentText()[len("FIELD:"):]
+            timefrom = idx if idx < 1 else self.timeFromCombo.currentText()[len("FIELD:"):]
         except:
             #print "Unexpected error:", sys.exc_info()[1]
             timefrom = utils.NO_TIME
@@ -202,10 +196,7 @@ class TreeLayerItem2(QTreeWidgetItem):
         try:
             idx = self.timeToCombo.currentIndex()
             #print """IDX: """ + str(idx)
-            if idx < 1:
-                timeto = idx
-            else:
-                timeto = self.timeToCombo.currentText()[len("FIELD:"):]
+            timeto = idx if idx < 1 else self.timeToCombo.currentText()[len("FIELD:"):]
         except:
             #print "Unexpected error:", sys.exc_info()[1]
             timeto = utils.NO_TIME
@@ -236,15 +227,14 @@ class TreeLayerItem2(QTreeWidgetItem):
         if datestr == "NULL":
             datestr = "1000" #TODO work better with null dates
         if len(datestr) == 4:
-            datestr = datestr + "0101"
+            datestr = f"{datestr}0101"
         if len(datestr) == 6:
-            datestr = datestr + "01"
+            datestr = f"{datestr}01"
         return int(datestr)
 
     def dateIntToString(self, dateint):
         datestr = str(dateint)
-        dateout = datestr[0:4] + "-" + datestr[4:6] + "-" + datestr[6:8]
-        return dateout
+        return f"{datestr[:4]}-{datestr[4:6]}-{datestr[6:8]}"
 
     def populateMinMax(self):
         global projectInstance
@@ -309,20 +299,21 @@ class Button(QPushButton):
         html = self.addLeafletHeader(html)
         html = self.changeLeafletStyles(html)
         index_time = os.path.join(dir, latest_subdir[1], 'index_time.html')
-        f = open(index_time, 'w')
-        f.write(html)
-        f.close()
+        with open(index_time, 'w') as f:
+            f.write(html)
     def addLeafletHeader(self, html):
         mintime = projectInstance.readEntry("qgis2web", "Min")[0]
         maxtime = projectInstance.readEntry("qgis2web", "Max")[0]
-        
-        header = '<script src="http://code.jquery.com/jquery-1.11.1.min.js"></script>\n'
-        header += '<link rel="stylesheet" href="https://code.jquery.com/ui/1.10.2/themes/smoothness/jquery-ui.css" />\n'
+
+        header = (
+            '<script src="http://code.jquery.com/jquery-1.11.1.min.js"></script>\n'
+            + '<link rel="stylesheet" href="https://code.jquery.com/ui/1.10.2/themes/smoothness/jquery-ui.css" />\n'
+        )
         header += '<script src="https://code.jquery.com/ui/1.10.2/jquery-ui.js"></script>\n'
         header += '<div style="position: fixed; top: 10px; left: 70px;"><div id="slider-range" style="width:300px"></div>\n'
         header += '<p><input id="datefrom"/>   <input id="dateto"/> </p>\n'
         header += '</div>\n'
-        
+
         header += "<script>\n"
         header += "function getDateString(d) {\n"
         header += "m = d.getMonth() + 1;\n"
@@ -333,10 +324,13 @@ class Button(QPushButton):
         header += "$(document).ready(function() {\n"
         header += "$( '#slider-range' ).slider({\n"
         header += "range: true,\n"
-        header += "min: new Date('" + mintime + "').getTime() / 1000,\n"
-        header += "max: new Date('" + maxtime + "').getTime() / 1000,\n"
+        header += f"min: new Date('{mintime}" + "').getTime() / 1000,\n"
+        header += f"max: new Date('{maxtime}" + "').getTime() / 1000,\n"
         header += "step: 86400,\n"
-        header += "values: [ new Date('" + mintime + "').getTime() / 1000, new Date('" + maxtime + "').getTime() / 1000 ],\n"
+        header += (
+            f"values: [ new Date('{mintime}').getTime() / 1000, new Date('{maxtime}"
+            + "').getTime() / 1000 ],\n"
+        )
         header += "slide: function( event, ui ) {\n"
         header += "var from = new Date(ui.values[0] *1000);\n"
         header += "var to = new Date(ui.values[1] *1000);\n"
@@ -345,13 +339,13 @@ class Button(QPushButton):
         header += "setVisibility();\n"
         header += "}\n"
         header += "});\n"
-        
+
         header += "var from = new Date($('#slider-range').slider('values', 0)*1000);\n"
         header += "var to = new Date($('#slider-range').slider('values', 1)*1000);\n"
         header += "$( '#datefrom' ).val(getDateString(from));\n"
         header += "$( '#dateto' ).val(getDateString(to));\n"
         header += "});\n"
-        
+
         html = html.replace("<script>", header)
         return html
 
@@ -365,7 +359,7 @@ class Button(QPushButton):
             layer = tree_layer.layer()
             if layer.type() == QgsMapLayer.VectorLayer:
                 if layer.customProperty("qgis2web/Time from") is not None and layer.customProperty("qgis2web/Time to") is not None and layer.customProperty("qgis2web/Time from") is not QPyNullVariant and layer.customProperty("qgis2web/Time to") is not QPyNullVariant:
-                    start = html.find("function style_" + layer.name())
+                    start = html.find(f"function style_{layer.name()}")
                     flen = len("function style_") + len(layer.name())
                     layeridstr = html[start+flen:start+flen+2]
                     layernames.append(layer.name() + layeridstr)
@@ -374,13 +368,21 @@ class Button(QPushButton):
                     style = html[start2+1:end]
                     style = style.replace("return", "s = ") + "\n};"
                     end = html.find("}", end + 1)
-                    style = "function style_" + layer.name() + layeridstr + "_0(feature) {" + "\n" + style
+                    style = (
+                        f"function style_{layer.name()}{layeridstr}"
+                        + "_0(feature) {"
+                        + "\n"
+                        + style
+                    )
                     #print layer.customProperty("qgis2web/Time from")
                     field_from = layer.pendingFields()[int(layer.customProperty("qgis2web/Time from"))-1].name()
                     field_to = layer.pendingFields()[int(layer.customProperty("qgis2web/Time to"))-1].name()
-                    
-                    style += "var featuredatefrom = String(feature.properties." + field_from + ");\n"
-                    style += "var featuredateto = String(feature.properties." + field_to + ");\n"
+
+                    style += (
+                        f"var featuredatefrom = String(feature.properties.{field_from}"
+                        + ");\n"
+                    )
+                    style += f"var featuredateto = String(feature.properties.{field_to}" + ");\n"
                     style += "if (featuredatefrom.length == 4) { featuredatefrom = featuredatefrom + '-01-01'; }\n"
                     style += "if (featuredatefrom.length == 7) { featuredatefrom = featuredatefrom + '-01'; }\n"
                     style += "if (featuredateto.length == 4) { featuredateto = featuredateto + '-01-01'; }\n"
@@ -396,27 +398,33 @@ class Button(QPushButton):
 
                     style += "return s;\n"
                     style += "}\n"
-                    
-                    style += "function setVisibility" + layer.name() + layeridstr + "() {\n"   
+
+                    style += f"function setVisibility{layer.name()}{layeridstr}" + "() {\n"
                     style += "for (var row=0; row<1000; row++) {\n"
-                    style += "if ( typeof(layer_" + layer.name() + layeridstr + "._layers[row])=='undefined') continue;\n"
-                    style += "  s = style_" + layer.name() + layeridstr + "_0(layer_" + layer.name() + layeridstr + "._layers[row].feature);\n"
-                    style += "  layer_" + layer.name() + layeridstr + "._layers[row].setStyle(s);\n"
-                    style += " }\n"      
+                    style += (
+                        f"if ( typeof(layer_{layer.name()}{layeridstr}"
+                        + "._layers[row])=='undefined') continue;\n"
+                    )
+                    style += (
+                        f"  s = style_{layer.name()}{layeridstr}_0(layer_{layer.name()}{layeridstr}"
+                        + "._layers[row].feature);\n"
+                    )
+                    style += f"  layer_{layer.name()}{layeridstr}" + "._layers[row].setStyle(s);\n"
+                    style += " }\n"
                     style += "}\n"
                     html = html[:start] + style + html[end+1:]
-                    start = html.find("function doPointToLayer" + layer.name())
-                    if start != -1:                  
+                    start = html.find(f"function doPointToLayer{layer.name()}")
+                    if start != -1:  
                         start = html.find("(", start + 1)
-                        start = html.find("(", start + 1) 
-                        start = html.find("(", start + 1)  
-                        html = html[:start] + "(feature" + html[start+1:]        
+                        start = html.find("(", start + 1)
+                        start = html.find("(", start + 1)
+                        html = f"{html[:start]}(feature{html[start + 1:]}"
                 layerid -= 1
         fvisibility = "function setVisibility() {\n"
         for layername in layernames:
-            fvisibility += "setVisibility" + layername + "();\n"
+            fvisibility += f"setVisibility{layername}" + "();\n"
         fvisibility += "}\n"
-        html = html.replace("setBounds();", fvisibility + "setBounds();")
+        html = html.replace("setBounds();", f"{fvisibility}setBounds();")
         return html
     
     def saveOLMap(self):
@@ -430,24 +438,25 @@ class Button(QPushButton):
         # print dir
         root, dirs, files = next(os.walk(dir))
         latest_subdir = max((os.path.getctime(os.path.join(root, f)), f) for f in dirs)
-        
+
         index = os.path.join(dir, latest_subdir[1], 'index.html')
         html = open(index, 'r').read()
-        
+
         layernames = self.changeOLStyles(os.path.join(dir, latest_subdir[1], 'styles'))
-        
+
         fvisibility = "function setVisibility() {\n"
         for layername in layernames:
-            fvisibility += "lyr_" + layername + ".getSource().changed();\n"
+            fvisibility += f"lyr_{layername}" + ".getSource().changed();\n"
         fvisibility += "}</script>\n"
-        
+
         html = html.replace("_style.js", "_style_time.js")
-        
+
         mintime = projectInstance.readEntry("qgis2web", "Min")[0]
-        maxtime = projectInstance.readEntry("qgis2web", "Max")[0]        
-        header = '<head>\n<script src="http://code.jquery.com/jquery-1.11.1.min.js"></script>\n'
-        header += '<script>\n'
-        
+        maxtime = projectInstance.readEntry("qgis2web", "Max")[0]
+        header = (
+            '<head>\n<script src="http://code.jquery.com/jquery-1.11.1.min.js"></script>\n'
+            + '<script>\n'
+        )
         header += "function getDateString(d) {\n"
         header += "m = d.getMonth() + 1;\n"
         header += "month = String('0' + m).slice(-2);\n"
@@ -458,10 +467,13 @@ class Button(QPushButton):
         header += "$(document).ready(function() {\n"
         header += "$( '#slider-range' ).slider({\n"
         header += "range: true,\n"
-        header += "min: new Date('" + mintime + "').getTime() / 1000,\n"
-        header += "max: new Date('" + maxtime + "').getTime() / 1000,\n"
+        header += f"min: new Date('{mintime}" + "').getTime() / 1000,\n"
+        header += f"max: new Date('{maxtime}" + "').getTime() / 1000,\n"
         header += "step: 86400,\n"
-        header += "values: [ new Date('" + mintime + "').getTime() / 1000, new Date('" + maxtime + "').getTime() / 1000 ],\n"
+        header += (
+            f"values: [ new Date('{mintime}').getTime() / 1000, new Date('{maxtime}"
+            + "').getTime() / 1000 ],\n"
+        )
         header += "slide: function( event, ui ) {\n"
         header += "var from = new Date(ui.values[0] *1000);\n"
         header += "var to = new Date(ui.values[1] *1000);\n"
@@ -475,22 +487,23 @@ class Button(QPushButton):
         header += "$( '#datefrom' ).val(getDateString(from));\n"
         header += "$( '#dateto' ).val(getDateString(to));\n"
         header += "});\n"
-        
+
         header += fvisibility
         html = html.replace("<head>", header)
-        
-        header = '<link rel="stylesheet" href="https://code.jquery.com/ui/1.10.2/themes/smoothness/jquery-ui.css" />\n'
-        header += '<script src="https://code.jquery.com/ui/1.10.2/jquery-ui.js"></script>\n'
+
+        header = (
+            '<link rel="stylesheet" href="https://code.jquery.com/ui/1.10.2/themes/smoothness/jquery-ui.css" />\n'
+            + '<script src="https://code.jquery.com/ui/1.10.2/jquery-ui.js"></script>\n'
+        )
         header += '<div style="position: fixed; top: 10px; left: 70px;"><div id="slider-range" style="width:300px"></div>\n'
         header += '<p><input id="datefrom"/>   <input id="dateto"/> </p>\n'
         header += '</div>\n'
         #header = '<p style="position: fixed; top: 0; right: 0;">Time axis: <input type="range" id="date" min="' + mintime + '" max="' + maxtime + '"/><input id="datetxt"/></p></body>'
         html = html.replace("</body>", header)
-        
+
         index_time = os.path.join(dir, latest_subdir[1], 'index_time.html')
-        f = open(index_time, 'w')
-        f.write(html)
-        f.close()
+        with open(index_time, 'w') as f:
+            f.write(html)
     
     def changeOLStyles(self, path):
         root_node = QgsProject.instance().layerTreeRoot()
@@ -507,14 +520,17 @@ class Button(QPushButton):
                     stylefile = os.path.join(path, layer.name() + unicode(layerid) + "_style.js")
                     styletimefile = os.path.join(path, layer.name() + unicode(layerid) + "_style_time.js")
                     if not os.path.exists(stylefile):
-                        stylefile = os.path.join(path, layer.name() + "_style.js")
-                        styletimefile = os.path.join(path, layer.name() + "_style_time.js")
+                        stylefile = os.path.join(path, f"{layer.name()}_style.js")
+                        styletimefile = os.path.join(path, f"{layer.name()}_style_time.js")
                     else:
                         layernames.append(layer.name() + unicode(layerid))
                     if not os.path.exists(stylefile):
-                        stylefile = os.path.join(path, layer.name() + "_" + unicode(layerid) + "_style.js")
-                        styletimefile = os.path.join(path, layer.name() + "_" + unicode(layerid) + "_style_time.js")
-                        layernames.append(layer.name() +  "_" + unicode(layerid))
+                        stylefile = os.path.join(path, f"{layer.name()}_{unicode(layerid)}_style.js")
+                        styletimefile = os.path.join(
+                            path,
+                            f"{layer.name()}_{unicode(layerid)}_style_time.js",
+                        )
+                        layernames.append(f"{layer.name()}_{unicode(layerid)}")
                     else:
                         layernames.append(layer.name())
                     style = open(stylefile, 'r').read()
@@ -523,8 +539,8 @@ class Button(QPushButton):
                     styledef = style[start+4:end+1]
                     field_from = layer.pendingFields()[int(layer.customProperty("qgis2web/Time from"))-1].name()
                     field_to = layer.pendingFields()[int(layer.customProperty("qgis2web/Time to"))-1].name()
-                    stylevis = "var featuredatefrom = String(feature.get('" + field_from + "'));\n"
-                    stylevis += "var featuredateto = String(feature.get('" + field_to + "'));\n"
+                    stylevis = f"var featuredatefrom = String(feature.get('{field_from}" + "'));\n"
+                    stylevis += f"var featuredateto = String(feature.get('{field_to}" + "'));\n"
                     stylevis += "if (featuredatefrom.length == 4) { featuredatefrom = featuredatefrom + '-01-01'; }\n"
                     stylevis += "if (featuredatefrom.length == 7) { featuredatefrom = featuredatefrom + '-01'; }\n"
                     stylevis += "if (featuredateto.length == 4) { featuredateto = featuredateto + '-01-01'; }\n"
@@ -537,9 +553,8 @@ class Button(QPushButton):
                     stylevis += styledef.replace("1.0", "0.0") + "\n"
                     stylevis += "}\n"
                     style = style[:end+1] + stylevis + style[end+2:]
-                    f = open(styletimefile, 'w')
-                    f.write(style)
-                    f.close()
+                    with open(styletimefile, 'w') as f:
+                        f.write(style)
                 layerid -= 1
         return layernames
     

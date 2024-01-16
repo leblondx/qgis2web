@@ -67,12 +67,12 @@ def run_tests():
             if style.lower().endswith("qml"):
                 stylefile = os.path.join(subfolder_path, style)
                 name = os.path.splitext(stylefile)[0]
-                expectedfile = name + ".geostyler"
+                expectedfile = f"{name}.geostyler"
                 with open(expectedfile) as f:
                     expected = json.load(f)
                 setattr(
                     QgisToStylerTest,
-                    "test_" + name,
+                    f"test_{name}",
                     test_function(datafile, stylefile, expected),
                 )
 

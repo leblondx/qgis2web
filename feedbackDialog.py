@@ -144,18 +144,18 @@ class FeedbackDialog(QDialog, Ui_Feedback, Feedback):
 
     def setFatalError(self, error):
         self.progressBar.setRange(0, 100)
-        self.pushHtml('<span style="color:red">{}</span>'.format(error))
+        self.pushHtml(f'<span style="color:red">{error}</span>')
         self.buttonBox.button(QDialogButtonBox.Ok).setEnabled(True)
         self.buttonBox.button(QDialogButtonBox.Cancel).setEnabled(False)
 
     def setCompleted(self, feedback):
         self.setProgress(100)
-        self.pushHtml('<span style="color: green">{}</span>'.format(feedback))
+        self.pushHtml(f'<span style="color: green">{feedback}</span>')
         self.buttonBox.button(QDialogButtonBox.Ok).setEnabled(True)
         self.buttonBox.button(QDialogButtonBox.Cancel).setEnabled(False)
 
     def setProgress(self, progress):
-        if not self.progressBar.maximum() == 100:
+        if self.progressBar.maximum() != 100:
             self.progressBar.setRange(0, 100)
         self.progressBar.setValue(progress)
         self.processEvents()

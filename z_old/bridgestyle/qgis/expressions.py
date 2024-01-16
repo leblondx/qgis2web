@@ -99,7 +99,7 @@ def walkExpression(node, layer):
     #    filt = handle_condition(nod)
     if exp is None:
         raise UnsupportedExpressionException(
-            "Unsupported operator in expression: '%s'" % str(node)
+            f"Unsupported operator in expression: '{str(node)}'"
         )
     return exp
 
@@ -150,10 +150,7 @@ def handleUnary(node, layer):
     operand = node.operand()
     retOp = unaryOps[op]
     retOperand = walkExpression(operand, layer)
-    if retOp == "Sub":  # handle the particular case of a minus in a negative number
-        return [retOp, 0, retOperand]
-    else:
-        return [retOp, retOperand]
+    return [retOp, 0, retOperand] if retOp == "Sub" else [retOp, retOperand]
 
 
 def handleLiteral(node):
@@ -186,10 +183,9 @@ def handleFunction(node, layer):
         args = node.args()
         if args is not None:
             args = args.list()
-            for arg in args:
-                elems.append(walkExpression(arg, layer))
+            elems.extend(walkExpression(arg, layer) for arg in args)
         return elems
     else:
         raise UnsupportedExpressionException(
-            "Unsupported function in expression: '%s'" % func
+            f"Unsupported function in expression: '{func}'"
         )

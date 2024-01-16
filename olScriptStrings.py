@@ -4,7 +4,7 @@ from qgis2web.olStyleScripts import getStrokeStyle
 
 
 def measureControlScript():
-    measureControl = """
+    return """
 var measuring = false;
 var measureControl = (function (Control) {
     measureControl = function(opt_options) {
@@ -59,11 +59,10 @@ var measureControl = (function (Control) {
     measureControl.prototype.constructor = measureControl;
     return measureControl;
     }(ol.control.Control));"""
-    return measureControl
 
 
 def measuringScript():
-    measuring = """
+    return """
     map.on('pointermove', function(evt) {
         if (evt.dragging) {
             return;
@@ -84,11 +83,10 @@ def measuringScript():
         }
     });
     """
-    return measuring
 
 
 def measureScript():
-    measure = """
+    return """
     var measureControl = document.querySelector(".measure-control");
 
     var selectLabel = document.createElement("label");
@@ -343,11 +341,10 @@ function createMeasureTooltip() {
 }
 
 """
-    return measure
 
 
 def measureUnitFeetScript():
-    measureUnitFeet = """function convertToFeet(length) {
+    return """function convertToFeet(length) {
     feet_length = length * 3.2808;
     return feet_length
 }
@@ -402,11 +399,10 @@ if (elementToMove && parentElement) {
   parentElement.insertBefore(elementToMove, parentElement.firstChild);
 }
 """
-    return measureUnitFeet
 
 
 def measureUnitMetricScript():
-    measureUnitMetric = """
+    return """
 /**
  * format length output
  * @param {ol.geom.LineString} line
@@ -458,13 +454,12 @@ if (elementToMove && parentElement) {
   parentElement.insertBefore(elementToMove, parentElement.firstChild);
 }
 """
-    return measureUnitMetric
 
 
 def measureStyleScript(controlCount):
     pos = 65 + (controlCount * 35)
     touchPos = 80 + (controlCount * 50)
-    measureStyle = """
+    return """
 <style>
 .tooltip {
   position: relative;
@@ -510,8 +505,10 @@ def measureStyleScript(controlCount):
   padding: 1px;
   padding-right: 4px;
 }
-</style>""" % {"pos": pos, "touchPos": touchPos}
-    return measureStyle
+</style>""" % {
+        "pos": pos,
+        "touchPos": touchPos,
+    }
 
 
 def layerSearchStyleScript(controlCount):
@@ -614,11 +611,12 @@ var geolocateControl = (function (Control) {
 
 
 def geolocateStyle(geolocate, controlCount):
-    if geolocate:
-        ctrlPos = 65 + (controlCount * 35)
-        touchCtrlPos = 80 + (controlCount * 50)
-        controlCount = controlCount + 1
-        return ("""
+    if not geolocate:
+        return ("", controlCount)
+    ctrlPos = 65 + (controlCount * 35)
+    touchCtrlPos = 80 + (controlCount * 50)
+    controlCount = controlCount + 1
+    return ("""
         <style>
         .geolocate {
             top: %dpx;
@@ -628,24 +626,20 @@ def geolocateStyle(geolocate, controlCount):
             top: %dpx;
         }
         </style>""" % (ctrlPos, touchCtrlPos), controlCount)
-    else:
-        return ("", controlCount)
 
 
 def geocodeLinks(geocode):
     if geocode:
-        returnVal = """
+        return """
         <link href="resources/ol-geocoder.min.css" rel="stylesheet">"""
-        return returnVal
     else:
         return ""
 
 
 def geocodeJS(geocode):
     if geocode:
-        returnVal = """
+        return """
         <script src="resources/ol-geocoder.js"></script>"""
-        return returnVal
     else:
         return ""
 
@@ -684,7 +678,7 @@ def getGrid(project):
         dashed = "no"
         for prop in props:
             if prop["@k"] == "line_color":
-                color = "'rgba(%s)'" % prop["@v"]
+                color = f"""'rgba({prop["@v"]})'"""
             if prop["@k"] == "line_style":
                 dashed = prop["@v"]
             if prop["@k"] == "line_width":
@@ -703,9 +697,8 @@ def getGrid(project):
 
 
 def getM2px(mapUnitsLayers):
-    m2px = ""
-    if len(mapUnitsLayers) > 0:
-        m2px = """
+    return (
+        """
 function m2px(m) {
     var centerLatLng = map.getView().getCenter();
     var pointC = map.getPixelFromCoordinate(centerLatLng);
@@ -718,16 +711,20 @@ function m2px(m) {
     px = Math.ceil(reciprocal);
     return px;
 }"""
-    return m2px
+        if len(mapUnitsLayers) > 0
+        else ""
+    )
 
 
 def getMapUnitLayers(mapUnitsLayers):
     mapUnitLayers = ""
     if len(mapUnitsLayers) > 0:
-        lyrs = []
-        for layer in mapUnitsLayers:
-            lyrs.append("""
-            lyr_%s.setStyle(style_%s);""" % (layer, layer))
+        lyrs = [
+            """
+            lyr_%s.setStyle(style_%s);"""
+            % (layer, layer)
+            for layer in mapUnitsLayers
+        ]
         lyrScripts = "".join(lyrs)
         mapUnitLayers = """
 map.getView().on('change:resolution', function(evt){

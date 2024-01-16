@@ -34,8 +34,7 @@ def getLayerStyle(layer, sln, interactivity, markerFolder,
     elif isinstance(renderer, QgsSingleSymbolRenderer):
         symbol = renderer.symbol()
         slCount = symbol.symbolLayerCount()
-        if slCount < 1:
-            slCount = 1
+        slCount = max(slCount, 1)
         for sl in range(slCount):
             (styleCode, markerType, useMapUnits,
              pattern) = getSymbolAsStyle(symbol, markerFolder,
@@ -51,8 +50,7 @@ def getLayerStyle(layer, sln, interactivity, markerFolder,
         symbol = renderer.categories()[0].symbol()
         slCount = symbol.symbolLayerCount()
         patterns = ""
-        if slCount < 1:
-            slCount = 1
+        slCount = max(slCount, 1)
         for sl in range(slCount):
             style += """
         function style_%s_%s(feature) {
@@ -81,8 +79,7 @@ def getLayerStyle(layer, sln, interactivity, markerFolder,
         symbol = renderer.ranges()[0].symbol()
         slCount = symbol.symbolLayerCount()
         patterns = ""
-        if slCount < 1:
-            slCount = 1
+        slCount = max(slCount, 1)
         for sl in range(slCount):
             style += """
         function style_%s_%s(feature) {""" % (sln, sl)
@@ -97,17 +94,19 @@ def getLayerStyle(layer, sln, interactivity, markerFolder,
                 style += """&& feature.properties['%(a)s'] <= %(u)f ) {
                 return %(s)s
             }"""
-                style = style % {"a": classAttr, "l": ran.lowerValue(),
-                                 "u": ran.upperValue(),
-                                 "s": styleCode}
+                style %= {
+                    "a": classAttr,
+                    "l": ran.lowerValue(),
+                    "u": ran.upperValue(),
+                    "s": styleCode,
+                }
             style = patterns + style + """
         }"""
     elif isinstance(renderer, QgsRuleBasedRenderer):
         symbol = renderer.rootRule().children()[0].symbol()
         slCount = symbol.symbolLayerCount()
         patterns = ""
-        if slCount < 1:
-            slCount = 1
+        slCount = max(slCount, 1)
         for sl in range(slCount):
             template = """
         %s
@@ -172,10 +171,7 @@ def getSymbolAsStyle(symbol, markerFolder, layer_transparency, interactivity,
     markerType = None
     pattern = ""
     # styles = []
-    if layer_transparency == 0:
-        alpha = symbol.alpha()
-    else:
-        alpha = layer_transparency
+    alpha = symbol.alpha() if layer_transparency == 0 else layer_transparency
     slc = sl
     sl = symbol.symbolLayer(sl)
     try:
@@ -204,10 +200,7 @@ def getSymbolAsStyle(symbol, markerFolder, layer_transparency, interactivity,
                                        borderUnits, size, sizeUnits, props,
                                        lineStyle, shape, feedback)
         try:
-            if shape == 8 or shape == "circle":
-                markerType = "circleMarker"
-            else:
-                markerType = "shapeMarker"
+            markerType = "circleMarker" if shape in [8, "circle"] else "shapeMarker"
         except Exception:
             markerType = "circleMarker"
     elif isinstance(sl, QgsSvgMarkerSymbolLayer):
@@ -224,7 +217,10 @@ def getSymbolAsStyle(symbol, markerFolder, layer_transparency, interactivity,
         style = """
         rotationAngle: %s,
         rotationOrigin: 'center center',
-        icon: %s""" % (rot, getIcon("markers/" + sln + ".svg", svgSize))
+        icon: %s""" % (
+            rot,
+            getIcon(f"markers/{sln}.svg", svgSize),
+        )
         markerType = "marker"
 
         # save a colorized svg in the markers folder
@@ -239,7 +235,7 @@ def getSymbolAsStyle(symbol, markerFolder, layer_transparency, interactivity,
             s = s.replace('param(outline)', pOutline)
             s = s.replace('param(outline-width)', props["outline_width"])
             s = s.replace('param(outline-opacity)', '1')
-        with open(os.path.join(markerFolder, sln + ".svg"), 'w') as f:
+        with open(os.path.join(markerFolder, f"{sln}.svg"), 'w') as f:
             f.write(s)
     elif isinstance(sl, QgsSimpleLineSymbolLayer):
         color = getRGBAColor(props["line_color"], alpha)
@@ -275,8 +271,7 @@ def getSymbolAsStyle(symbol, markerFolder, layer_transparency, interactivity,
                                                   lineCap, lineJoin,
                                                   useMapUnits, feedback)
 
-        style = ('''%s %s''' %
-                 (strokeStyle, getFillStyle(fillColor, props)))
+        style = f'''{strokeStyle} {getFillStyle(fillColor, props)}'''
     elif isinstance(sl, QgsLinePatternFillSymbolLayer):
         weight = sl.subSymbol().width()
         spaceWeight = sl.distance()
@@ -319,14 +314,14 @@ def getMarker(color, borderColor, borderWidth, borderUnits, size, sizeUnits,
                                               useMapUnits, feedback)
     if sizeUnits == "MapUnit":
         useMapUnits = True
-        size = "geoStyle(%s)" % size
-    if shape == 0 or shape == "square":
+        size = f"geoStyle({size})"
+    if shape in [0, "square"]:
         markerShape = "shape: 'square',"
-    elif shape == 1 or shape == "diamond":
+    elif shape in [1, "diamond"]:
         markerShape = "shape: 'diamond',"
-    elif shape == 4 or shape == "triangle":
+    elif shape in [4, "triangle"]:
         markerShape = "shape: 'triangle',"
-    elif shape == 11 or shape == "cross2":
+    elif shape in [11, "cross2"]:
         markerShape = "shape: 'x',"
     else:
         markerShape = ""
@@ -352,7 +347,7 @@ def getStrokeStyle(color, dashed, width, units, linecap, linejoin,
             width = 1
         if units == "MapUnit":
             useMapUnits = True
-            width = "geoStyle(%s)" % width
+            width = f"geoStyle({width})"
         dash = dashed.replace("dash", "10,5")
         dash = dash.replace("dot", "1,5")
         dash = dash.replace("solid", "")
@@ -360,12 +355,12 @@ def getStrokeStyle(color, dashed, width, units, linecap, linejoin,
         capString = "round"
         if linecap == 0:
             capString = "butt"
-        if linecap == 16:
+        elif linecap == 16:
             capString = "square"
         joinString = "round"
         if linejoin == 0:
             joinString = "miter"
-        if linejoin == 64:
+        elif linejoin == 64:
             joinString = "bevel"
         strokeString = """
                 opacity: 1,

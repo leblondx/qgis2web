@@ -69,14 +69,14 @@ def processLayer(layer):
                 else:
                     ruleRenderer = renderer
                 if ruleRenderer is None:
-                    _warnings.append("Unsupported renderer type: %s" % str(renderer))
+                    _warnings.append(f"Unsupported renderer type: {str(renderer)}")
                     return
                 for rule in ruleRenderer.rootRule().children():
                     if rule.active():
                         rules.extend(processRule(rule, None, layer.opacity(), layer))
             labelingRules = processLabelingLayer(layer)
             if labelingRules is not None:
-                rules = rules + labelingRules
+                rules += labelingRules
             geostyler["rules"] = rules
     elif layer.type() == layer.RasterLayer:
         rules = [{"name": layer.name(), "symbolizers": [rasterSymbolizer(layer)]}]
@@ -92,28 +92,26 @@ def heatmapRenderer(renderer):
     hmRadius = renderer.radius()
     colorRamp = renderer.colorRamp()
     if not isinstance(colorRamp, QgsGradientColorRamp):
-        _warnings.append("Unsupported color ramp class: %s" % str(colorRamp))
+        _warnings.append(f"Unsupported color ramp class: {str(colorRamp)}")
         return
-    colMap = {}
-    colMap["type"] = "intervals" if colorRamp.isDiscrete() else "ramp"
-    mapEntries = []
-    mapEntries.append(
+    colMap = {"type": "intervals" if colorRamp.isDiscrete() else "ramp"}
+    mapEntries = [
         {
             "color": colorRamp.color1().name(),
             "quantity": 0,
             "opacity": colorRamp.color1().alphaF(),
             "label": "",
         }
+    ]
+    mapEntries.extend(
+        {
+            "color": stop.color.name(),
+            "quantity": stop.offset,
+            "opacity": stop.color.alphaF(),
+            "label": "",
+        }
+        for stop in colorRamp.stops()
     )
-    for stop in colorRamp.stops():
-        mapEntries.append(
-            {
-                "color": stop.color.name(),
-                "quantity": stop.offset,
-                "opacity": stop.color.alphaF(),
-                "label": "",
-            }
-        )
     mapEntries.append(
         {
             "color": colorRamp.color2().name(),
@@ -151,8 +149,7 @@ def rasterSymbolizer(layer):
         "opacity": renderer.opacity(),
         "channelSelection": channelSelection(renderer),
     }
-    colMap = colorMap(renderer)
-    if colMap:
+    if colMap := colorMap(renderer):
         symbolizer["colorMap"] = colMap
     return symbolizer
 
@@ -179,7 +176,7 @@ def channelSelection(renderer):
             channels["blueChannel"] = {"sourceChannelName": str(bands[2])}
         return channels
     else:
-        _warnings.append("Unsupported raster renderer class: '%s'" % str(renderer))
+        _warnings.append(f"Unsupported raster renderer class: '{str(renderer)}'")
         return None
 
 
@@ -189,15 +186,15 @@ def colorMap(renderer):
     if isinstance(renderer, QgsSingleBandGrayRenderer):
         colMap["type"] = "ramp"
         entries = renderer.legendSymbologyItems()
-        for entry in entries:
-            mapEntries.append(
-                {
-                    "color": entry[1].name(),
-                    "quantity": float(entry[0]),
-                    "opacity": entry[1].alphaF(),
-                    "label": entry[0],
-                }
-            )
+        mapEntries.extend(
+            {
+                "color": entry[1].name(),
+                "quantity": float(entry[0]),
+                "opacity": entry[1].alphaF(),
+                "label": entry[0],
+            }
+            for entry in entries
+        )
     elif isinstance(renderer, QgsSingleBandPseudoColorRenderer):
         rampType = "ramp"
         shader = renderer.shader().rasterShaderFunction()
@@ -208,36 +205,30 @@ def colorMap(renderer):
             rampType = "intervals"
         colMap["type"] = rampType
         items = shader.colorRampItemList()
-        for item in items:
-            mapEntries.append(
-                {
-                    "color": item.color.name(),
-                    "quantity": item.value,
-                    "label": item.label,
-                    "opacity": item.color.alphaF(),
-                }
-            )
+        mapEntries.extend(
+            {
+                "color": item.color.name(),
+                "quantity": item.value,
+                "label": item.label,
+                "opacity": item.color.alphaF(),
+            }
+            for item in items
+        )
     elif isinstance(renderer, QgsPalettedRasterRenderer):
         colMap["type"] = "values"
         classes = renderer.classes()
-        for c in classes:
-            mapEntries.append(
-                {
-                    "color": c.color.name(),
-                    "quantity": c.value,
-                    "label": c.label,
-                    "opacity": c.color.alphaF(),
-                }
-            )
-    elif isinstance(renderer, QgsMultiBandColorRenderer):
-        _warnings.append(
-            "Unsupported raster renderer class: '%s'" % str(renderer)
-        )  # TODO
-        return None
+        mapEntries.extend(
+            {
+                "color": c.color.name(),
+                "quantity": c.value,
+                "label": c.label,
+                "opacity": c.color.alphaF(),
+            }
+            for c in classes
+        )
     else:
-        _warnings.append("Unsupported raster renderer class: '%s'" % str(renderer))
+        _warnings.append(f"Unsupported raster renderer class: '{str(renderer)}'")
         return None
-
     colMap["extended"] = True
     if mapEntries is not None:
         colMap["colorMapEntries"] = mapEntries
@@ -276,7 +267,7 @@ def processLabelingLayer(layer):
     if isinstance(labeling, QgsRuleBasedLabeling):
         return processRuleLabeling(layer, labeling.rootRule(), "labeling")
     if not isinstance(labeling, QgsVectorLayerSimpleLabeling):
-        _warnings.append("Unsupported labeling class: '%s'" % str(labeling))
+        _warnings.append(f"Unsupported labeling class: '{str(labeling)}'")
         return None
     return [processLabeling(layer, labeling)]
 
@@ -286,17 +277,17 @@ def processLabelingLayer(layer):
 def getHeirarchicalFilter(rule, filter=None):
     if rule is None:
         return filter
-    filter = andFilter(
-        processExpression(rule.filterExpression()), getHeirarchicalFilter(rule.parent())
+    return andFilter(
+        processExpression(rule.filterExpression()),
+        getHeirarchicalFilter(rule.parent()),
     )
-    return filter
 
 
 def processRuleLabeling(layer, labeling, name):
     result = []
     for child in labeling.children():
         if child.active():
-            fullname = name + " - " + child.description()
+            fullname = f"{name} - {child.description()}"
             # filter = andFilter(filter, processExpression(
             #    child.filterExpression()))
             filter = getHeirarchicalFilter(child)
@@ -427,13 +418,9 @@ def addBackground(textFormat, symbolizer):
 
 # AND two expressions together (handle nulls)
 def andFilter(f1, f2):
-    if f1 is None and f2 is None:
-        return None
     if f1 is None:
-        return f2
-    if f2 is None:
-        return f1
-    return ["And", f1, f2]
+        return None if f2 is None else f2
+    return f1 if f2 is None else ["And", f1, f2]
 
 
 def processRule(rule, filters=None, layerOpacity=1, layer=None):
@@ -468,12 +455,8 @@ def processRule(rule, filters=None, layerOpacity=1, layer=None):
 #  they both have the same .minimumScale() functions, so this isn't a problem.
 def getScaleRule(rule, layer):
     if rule is None:
-        if layer.hasScaleBasedVisibility():
-            return layer
-        return None
-    if rule.dependsOnScale():
-        return rule
-    return getScaleRule(rule.parent(), layer)
+        return layer if layer.hasScaleBasedVisibility() else None
+    return rule if rule.dependsOnScale() else getScaleRule(rule.parent(), layer)
 
 
 def processRuleScale(rule):
@@ -495,12 +478,11 @@ def processExpression(expstr):
 
 
 def _cast(v):
-    if isinstance(v, basestring):
-        try:
-            return float(v)
-        except:
-            return v
-    else:
+    if not isinstance(v, basestring):
+        return v
+    try:
+        return float(v)
+    except:
         return v
 
 
@@ -511,10 +493,9 @@ POINT2PIXEL = (
 
 
 def _handleUnits(value, units, propertyConstant=None):
-    if propertyConstant == QgsSymbolLayer.PropertyStrokeWidth and str(value) in [
-        "0",
-        "0.0",
-    ]:
+    if propertyConstant == QgsSymbolLayer.PropertyStrokeWidth and str(
+        value
+    ) in {"0", "0.0"}:
         return 1  # hairline width
     if units in ["Point", QgsUnitTypes.RenderUnit.RenderPoints]:
         if isinstance(value, list):
@@ -527,18 +508,16 @@ def _handleUnits(value, units, propertyConstant=None):
         else:
             return float(value) * MM2PIXEL
     elif units == "RenderMetersInMapUnits":
-        if isinstance(value, list):
-            _warnings.append(
-                "Cannot render in map units when using a data-defined size value: '%s'"
-                % str(value)
-            )
-            return value
-        else:
-            return str(value) + "m"
+        if not isinstance(value, list):
+            return f"{str(value)}m"
+        _warnings.append(
+            f"Cannot render in map units when using a data-defined size value: '{str(value)}'"
+        )
+        return value
     elif units in ["Pixel", QgsUnitTypes.RenderUnit.RenderMillimeters]:
         return value
     else:
-        _warnings.append("Unsupported units: '%s'" % units)
+        _warnings.append(f"Unsupported units: '{units}'")
         return value
 
 
@@ -555,9 +534,7 @@ def _labelingProperty(settings, obj, name, propertyConstant=-1):
             v = v()
         except:
             pass
-    if v is None:
-        return ""
-    return _cast(v)
+    return "" if v is None else _cast(v)
 
 
 def _symbolProperty(symbolLayer, name, propertyConstant=-1, default=0):
@@ -567,7 +544,7 @@ def _symbolProperty(symbolLayer, name, propertyConstant=-1, default=0):
     else:
         v = symbolLayer.properties().get(name, default)
 
-    units = symbolLayer.properties().get(name + "_unit")
+    units = symbolLayer.properties().get(f"{name}_unit")
     if units is not None:
         v = _handleUnits(v, units, propertyConstant)
     return _cast(v)
@@ -637,9 +614,7 @@ def _createSymbolizer(sl, opacity):
         symbolizer = _fontMarkerSymbolizer(sl, opacity)
 
     if symbolizer is None:
-        _warnings.append(
-            "Symbol layer type not supported: '%s'" % sl.__class__.__name__
-        )
+        _warnings.append(f"Symbol layer type not supported: '{sl.__class__.__name__}'")
     return symbolizer
 
 
@@ -651,7 +626,7 @@ def _fontMarkerSymbolizer(sl, opacity):
     size = _symbolProperty(sl, "size", QgsSymbolLayer.PropertySize)
     if len(character) == 1:
         hexcode = hex(ord(character))
-        name = "ttf://%s#%s" % (fontFamily, hexcode)
+        name = f"ttf://{fontFamily}#{hexcode}"
         symbolizer.update(
             {
                 "kind": "Mark",
@@ -794,7 +769,7 @@ def _markGraphic(sl):
         path = sl.path()
         global _usedIcons
         _usedIcons[sl.path()] = sl
-        name = "file://" + os.path.basename(path)
+        name = f"file://{os.path.basename(path)}"
         outlineStyle = "solid"
         size = _symbolProperty(sl, "size", QgsSymbolLayer.PropertyWidth)
     except:

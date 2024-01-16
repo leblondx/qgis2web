@@ -37,7 +37,7 @@ def writeVectorLayer(layer, safeLayerName, usedFields, highlight,
                      vtStyles, useMultiStyle, useHeat, useVT, useShapes,
                      useOSMB):
     vts = layer.customProperty("VectorTilesReader/vector_tile_url")
-    feedback.showFeedback("Writing %s as JSON..." % layer.name())
+    feedback.showFeedback(f"Writing {layer.name()} as JSON...")
     zIndex = zIndex + 400
     markerFolder = os.path.join(outputProjectFileName, "markers")
     labeltext, vtLabels = getLabels(layer, safeLayerName,
@@ -108,13 +108,13 @@ def writeVectorLayer(layer, safeLayerName, usedFields, highlight,
             vtStyle[layer.name()] = ["", "", ""]
         isLayer = False
         geom = TYPE_MAP[layer.wkbType()].replace("Multi", "")
-        if geom == "Point":
-            index = 0
-            isLayer = True
         if geom == "LineString":
             index = 1
             isLayer = True
-        if geom == "Polygon":
+        elif geom == "Point":
+            index = 0
+            isLayer = True
+        elif geom == "Polygon":
             index = 2
             isLayer = True
         if isLayer:
@@ -169,10 +169,9 @@ def writeVectorLayer(layer, safeLayerName, usedFields, highlight,
 
 def getLabels(layer, safeLayerName, outputProjectFileName, vts, vtLabels,
               feedback):
-    # label_exp = ''
-    labeltext = ""
     f = ''
     labelling = layer.labeling()
+    labeltext = ""
     if labelling is not None and layer.labelsEnabled():
         palyr = labelling.settings()
         if palyr and palyr.fieldName and palyr.fieldName != "":
@@ -195,7 +194,7 @@ def getLabels(layer, safeLayerName, outputProjectFileName, vts, vtLabels,
             styleStart = "'<div style=\"color: %s; font-size: %dpt; " % (
                 fontColor, fontSize)
             if props.property(palyr.ShapeDraw).staticValue():
-                styleStart += "background-color: %s; " % bgColor
+                styleStart += f"background-color: {bgColor}; "
                 styleStart += "border: %dpx solid %s; " % (borderWidth,
                                                            borderColor)
                 if props.property(palyr.ShapeSizeType).staticValue() == 0:
@@ -213,20 +212,20 @@ def getLabels(layer, safeLayerName, outputProjectFileName, vts, vtLabels,
             if palyr.isExpression:
                 exprFilename = os.path.join(outputProjectFileName, "js",
                                             "qgis2web_expressions.js")
-                name = compile_to_file(palyr.getLabelExpression(),
-                                       "label_%s" % safeLayerName, "Leaflet",
-                                       exprFilename)
-                js = "%s(context)" % (name)
+                name = compile_to_file(
+                    palyr.getLabelExpression(),
+                    f"label_{safeLayerName}",
+                    "Leaflet",
+                    exprFilename,
+                )
+                js = f"{name}(context)"
                 js = js.strip()
                 f = js
             else:
                 fn = palyr.fieldName
-                f = "layer.feature.properties['%s']" % handleHiddenField(layer,
-                                                                         fn)
-            labeltext = ".bindTooltip((" + str(f)
-            labeltext += " !== null?String(%s%s)%s:'')" % (styleStart,
-                                                           str(f),
-                                                           styleEnd)
+                f = f"layer.feature.properties['{handleHiddenField(layer, fn)}']"
+            labeltext = f".bindTooltip(({str(f)}"
+            labeltext += f" !== null?String({styleStart}{str(f)}){styleEnd}:'')"
             labeltext += ", {permanent: true, offset: [-0, -16], "
             labeltext += "className: 'css_%s'}" % safeLayerName
             labeltext += ");"
@@ -249,7 +248,7 @@ def getLabels(layer, safeLayerName, outputProjectFileName, vts, vtLabels,
                 if palyr.isExpression:
                     labelVal = f
                 else:
-                    labelVal = "feature.properties['%s']" % palyr.fieldName
+                    labelVal = f"feature.properties['{palyr.fieldName}']"
                 labeltext = """
             if (vtLayer.name === '%s') {
                 var latlng = this.vtGeometryToLatLng(feature.geometry[0],
@@ -261,10 +260,7 @@ def getLabels(layer, safeLayerName, outputProjectFileName, vts, vtLabels,
                                     direction: 'center'}).openTooltip();
                 this.addUserLayer(marker, tileCoords);
             }""" % (layer.name(), labelVal)
-                if vts not in vtLabels:
-                    vtLabels[vts] = labeltext
-                else:
-                    vtLabels[vts] = vtLabels[vts] + labeltext
+                vtLabels[vts] = labeltext if vts not in vtLabels else vtLabels[vts] + labeltext
                 labeltext = ""
         else:
             labeltext = ""
@@ -281,8 +277,10 @@ def getPopups(layer, safeLayerName, highlight, popupsOnHover, popup, vts,
     field_names = popup.keys()
     field_vals = popup.values()
     table = ""
+    tablestart = "'<table>\\"
+    tableend = """
+                </table>'"""
     for field in popup:
-        tablestart = "'<table>\\"
         row = ""
         for field, val in zip(field_names, field_vals):
             fieldIndex = fields.indexFromName(str(field))
@@ -300,36 +298,33 @@ def getPopups(layer, safeLayerName, highlight, popupsOnHover, popup, vts,
                 row += displayName
                 row += """</th>\\
                         <td>"""
-            else:
+            elif val == "header label":
                 row += """
                         <td colspan="2">"""
-            if val == "header label":
                 row += '<strong>'
                 row += displayName
                 row += '</strong><br />'
+            else:
+                row += """
+                        <td colspan="2">"""
             row += "' + "
             row += "(feature.properties[\'" + str(field) + "\'] "
             row += "!== null ? "
 
             if (editorWidget == 'ExternalResource'):
                 row += "'<img src=\"images/' + "
-                row += "String(feature.properties['" + str(field)
+                row += f"String(feature.properties['{str(field)}"
                 row += r"']).replace(/[\\\/:]/g, '_').trim()"
                 row += " + '\">' : '') + '"
             else:
                 row += "autolinker.link("
-                row += "feature.properties['" + str(field)
+                row += f"feature.properties['{str(field)}"
                 row += "'].toLocaleString()) : '') + '"
 
             row += """</td>\\
                     </tr>\\"""
-        tableend = """
-                </table>'"""
         table = tablestart + row + tableend
-    if popup != 0 and table != "":
-        popFuncs = popFuncsScript(table)
-    else:
-        popFuncs = ""
+    popFuncs = popFuncsScript(table) if popup != 0 and table != "" else ""
     new_pop = popupScript(safeLayerName, popFuncs, highlight, popupsOnHover)
     return new_pop, popFuncs
 
@@ -339,9 +334,12 @@ def getLegend(layer, renderer, outputProjectFileName, safeLayerName, feedback):
         symbol = renderer.symbol()
         legendIcon = QgsSymbolLayerUtils.symbolPreviewPixmap(symbol,
                                                              QSize(16, 16))
-        legendIcon.save(os.path.join(outputProjectFileName, "legend",
-                                     safeLayerName + ".png"))
-        legend = ('<img src="legend/' + safeLayerName + '.png" /> ')
+        legendIcon.save(
+            os.path.join(
+                outputProjectFileName, "legend", f"{safeLayerName}.png"
+            )
+        )
+        legend = f'<img src="legend/{safeLayerName}.png" /> '
         legend += layer.name().replace("'", "\\'")
     elif isinstance(renderer, QgsNullSymbolRenderer):
         legend = ""
@@ -390,12 +388,11 @@ def getLayer(layer, renderer, safeLayerName, interactive,
 def pointLayer(layer, safeLayerName, interactive, cluster, usedFields, json,
                wfsLayers, markerType, symbol, useMultiStyle, feedback):
     if layer.providerType() == 'WFS' and json is False:
-        p2lf = ""
         slCount = symbol.symbolLayerCount()
-        if slCount < 1:
-            slCount = 1
-        for sl in range(slCount):
-            p2lf += pointToLayerFunction(safeLayerName, sl)
+        slCount = max(slCount, 1)
+        p2lf = "".join(
+            pointToLayerFunction(safeLayerName, sl) for sl in range(slCount)
+        )
         (new_obj,
          scriptTag,
          useMultiStyle) = buildPointWFS(p2lf, safeLayerName, layer,
@@ -403,11 +400,9 @@ def pointLayer(layer, safeLayerName, interactive, cluster, usedFields, json,
                                         useMultiStyle)
         wfsLayers += wfsScript(scriptTag)
     else:
-        layerAttr = ""
         attrText = layer.attribution()
         attrUrl = layer.attributionUrl()
-        if attrText != "":
-            layerAttr = '<a href="%s">%s</a>' % (attrUrl, attrText)
+        layerAttr = f'<a href="{attrUrl}">{attrText}</a>' if attrText != "" else ""
         (new_obj,
          useMultiStyle) = buildPointJSON(symbol, safeLayerName, usedFields,
                                          interactive, markerType, layerAttr,
@@ -425,11 +420,9 @@ def nonPointLayer(layer, safeLayerName, interactive, usedFields, json,
                                            interactive, useMultiStyle)
         wfsLayers += wfsScript(scriptTag)
     else:
-        layerAttr = ""
         attrText = layer.attribution().replace('\n', ' ').replace('\r', ' ')
         attrUrl = layer.attributionUrl()
-        if attrText != "":
-            layerAttr = u'<a href="%s">%s</a>' % (attrUrl, attrText)
+        layerAttr = f'<a href="{attrUrl}">{attrText}</a>' if attrText != "" else ""
         new_obj, useMultiStyle = buildNonPointJSON(safeLayerName, usedFields,
                                                    layerAttr, interactive,
                                                    symbol, useMultiStyle)
@@ -440,7 +433,7 @@ def heatmapLayer(layer, safeLayerName, interactive, renderer, feedback):
     attrText = layer.attribution()
     if attrText != "":
         attrUrl = layer.attributionUrl()
-        layerAttr = '<a href="%s">%s</a>' % (attrUrl, attrText)
+        layerAttr = f'<a href="{attrUrl}">{attrText}</a>'
     else:
         layerAttr = ""
     hmRadius = renderer.radius() * 2
@@ -457,9 +450,9 @@ def heatmapLayer(layer, safeLayerName, interactive, renderer, feedback):
     hmRamp = "{0: '" + hmStart + "', "
     hmStops = colorRamp.stops()
     for stop in hmStops:
-        hmRamp += str(stop.offset) + ": '" + stop.color.name() + "', "
-    hmRamp += "1: '" + hmEnd + "'}"
-    new_obj = """
+        hmRamp += f"{str(stop.offset)}: '{stop.color.name()}', "
+    hmRamp += f"1: '{hmEnd}" + "'}"
+    return """
         var %(sln)s_hm = geoJson2heat(json_%(sln)s,
                                       '%(hmWeight)s');
         var layer_%(sln)s = new L.heatLayer(%(sln)s_hm, {
@@ -469,10 +462,15 @@ def heatmapLayer(layer, safeLayerName, interactive, renderer, feedback):
             max: %(hmWeightMax)d,
             minOpacity: 1,
             gradient: %(hmRamp)s});
-        """ % {"sln": safeLayerName, "hmWeight": hmWeight, "attr": layerAttr,
-               "int": str(interactive).lower(), "hmWeightMax": hmWeightMax,
-               "hmRamp": hmRamp, "hmRadius": hmRadius}
-    return new_obj
+        """ % {
+        "sln": safeLayerName,
+        "hmWeight": hmWeight,
+        "attr": layerAttr,
+        "int": str(interactive).lower(),
+        "hmWeightMax": hmWeightMax,
+        "hmRamp": hmRamp,
+        "hmRadius": hmRadius,
+    }
 
 
 def VTLayer(json_url):
@@ -484,23 +482,24 @@ def VTLayer(json_url):
     json = TileJSON(json_url)
     json.load()
     tile_url = json.tiles()[0].split("?")[0]
-    key_url = "%s?%s" % (tile_url, key)
+    key_url = f"{tile_url}?{key}"
     styleSuffix = safeName(json_url)
-    vtJS = """
+    return """
         var layer_%s = L.vectorGrid.protobuf("%s", {
             rendererFactory: L.svg.tile,
             //onEachFeature: label_%s,
             vectorTileLayerStyles: style_%s
-        });""" % (sln, key_url, sln, styleSuffix)
-    return vtJS
+        });""" % (
+        sln,
+        key_url,
+        sln,
+        styleSuffix,
+    )
 
 
 def buildPointJSON(symbol, sln, usedFields, interactive, markerType, layerAttr,
                    useMultiStyle):
-    if symbol:
-        slCount = symbol.symbolLayerCount()
-    else:
-        slCount = 0
+    slCount = symbol.symbolLayerCount() if symbol else 0
     multiStyle = ""
     if slCount > 1:
         multiStyle = ".multiStyle"
@@ -527,6 +526,8 @@ def buildPointJSON(symbol, sln, usedFields, interactive, markerType, layerAttr,
                 return L.{markerType}(latlng, """
             pointJSON += """style_{sln}_%s(feature));
             }},""" % sl
+        pointJSON += """
+        ]}});"""
     else:
         pointJSON += """
             pointToLayer: function (feature, latlng) {{
@@ -536,10 +537,6 @@ def buildPointJSON(symbol, sln, usedFields, interactive, markerType, layerAttr,
                 }};
                 return L.{markerType}(latlng, style_{sln}_0(feature));
             }},"""
-    if slCount > 1:
-        pointJSON += """
-        ]}});"""
-    else:
         pointJSON += """
         }});"""
     pointJSON = pointJSON.format(sln=sln, int=str(interactive).lower(),
@@ -549,11 +546,9 @@ def buildPointJSON(symbol, sln, usedFields, interactive, markerType, layerAttr,
 
 def buildPointWFS(p2lf, layerName, layer, interactive, cluster_set, symbol,
                   useMultiStyle):
-    layerAttr = ""
     attrText = layer.attribution()
     attrUrl = layer.attributionUrl()
-    if attrText != "":
-        layerAttr = '<a href="%s">%s</a>' % (attrUrl, attrText)
+    layerAttr = f'<a href="{attrUrl}">{attrText}</a>' if attrText != "" else ""
     scriptTag = getWFSScriptTag(layer, layerName)
     p2ls = ""
     slCount = symbol.symbolLayerCount()
@@ -566,9 +561,9 @@ def buildPointWFS(p2lf, layerName, layer, interactive, cluster_set, symbol,
         p2lStart = "pointToLayers: ["
         p2lEnd = "],"
         for sl in range(slCount):
-            p2ls += "pointToLayer_%s_%s, " % (layerName, sl)
+            p2ls += f"pointToLayer_{layerName}_{sl}, "
     else:
-        p2ls = "pointToLayer_%s_0, " % layerName
+        p2ls = f"pointToLayer_{layerName}_0, "
     new_obj = p2lf + """
         var layer_{layerName} = L.geoJson{multiStyle}(null, {{
             attribution: '{layerAttr}',
@@ -607,10 +602,7 @@ def buildNonPointJSON(safeName, usedFields, layerAttr, interactive, symbol,
     else:
         onEachFeature = u""
     styles = u""
-    if symbol:
-        slCount = symbol.symbolLayerCount()
-    else:
-        slCount = 0
+    slCount = symbol.symbolLayerCount() if symbol else 0
     multiStyle = u""
     styleStart = "style: "
     styleEnd = ""
@@ -620,9 +612,9 @@ def buildNonPointJSON(safeName, usedFields, layerAttr, interactive, symbol,
         styleStart = u"styles: ["
         styleEnd = u"]"
         for sl in range(slCount):
-            styles += u"""style_%s_%s,""" % (safeName, sl)
+            styles += f"""style_{safeName}_{sl},"""
     else:
-        styles = u"""style_%s_0,""" % safeName
+        styles = f"""style_{safeName}_0,"""
     new_obj = u"""
         var layer_{safeName} = new L.geoJson{multiStyle}(json_{safeName}, {{
             attribution: '{attr}',
@@ -641,11 +633,9 @@ def buildNonPointJSON(safeName, usedFields, layerAttr, interactive, symbol,
 
 
 def buildNonPointWFS(layerName, layer, symbol, interactive, useMultiStyle):
-    layerAttr = ""
     attrText = layer.attribution()
     attrUrl = layer.attributionUrl()
-    if attrText != "":
-        layerAttr = '<a href="%s">%s</a>' % (attrUrl, attrText)
+    layerAttr = f'<a href="{attrUrl}">{attrText}</a>' if attrText != "" else ""
     scriptTag = getWFSScriptTag(layer, layerName)
     styles = ""
     slCount = symbol.symbolLayerCount()
@@ -658,10 +648,11 @@ def buildNonPointWFS(layerName, layer, symbol, interactive, useMultiStyle):
         styleStart = "styles: ["
         styleEnd = "],"
         for sl in range(slCount):
-            styles += """style_%s_%s,""" % (layerName, sl)
+            styles += f"""style_{layerName}_{sl},"""
     else:
-        styles = """style_%s_0,""" % layerName
-    new_obj = """
+        styles = f"""style_{layerName}_0,"""
+    new_obj = (
+        """
         var layer_{layerName} = L.geoJson{multiStyle}(null, {{
             attribution: '{attr}',
             interactive: {int},
@@ -671,9 +662,10 @@ def buildNonPointWFS(layerName, layer, symbol, interactive, useMultiStyle):
             pane: 'pane_{layerName}',
             onEachFeature: pop_{layerName}
         }});"""
-    new_obj += """
+        + """
         function get{layerName}Json(geojson) {{
             layer_{layerName}"""
+    )
     new_obj = new_obj.format(layerName=layerName, multiStyle=multiStyle,
                              attr=layerAttr, int=str(interactive).lower(),
                              styleStart=styleStart, styles=styles,
@@ -701,5 +693,5 @@ def getWFSScriptTag(layer, layerName):
         layerSource += wfsSRS
     scriptTag = re.sub(r'SRSNAME\=EPSG\:\d+', 'SRSNAME=EPSG:4326', layerSource)
     scriptTag += "&outputFormat=text%2Fjavascript&format_options=callback%3A"
-    scriptTag += "get" + layerName + "Json"
+    scriptTag += f"get{layerName}Json"
     return scriptTag

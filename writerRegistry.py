@@ -104,21 +104,20 @@ class WriterRegistry(object):
         key_string = self.sanitiseKey(parameter)
 
         value = default_value
-        if isinstance(default_value, bool):
+        if isinstance(value, bool):
             if project.readBoolEntry(
                     "qgis2web", key_string)[1]:
                 value = project.readBoolEntry("qgis2web",
                                               key_string)[0]
-        elif isinstance(default_value, int):
+        elif isinstance(value, int):
             if project.readNumEntry(
                     "qgis2web", key_string)[1]:
                 value = project.readNumEntry("qgis2web",
                                              key_string)[0]
-        else:
-            if (isinstance(project.readEntry("qgis2web",
+        elif (isinstance(project.readEntry("qgis2web",
                                              key_string)[0], str) and
                     project.readEntry("qgis2web", key_string)[0] != ""):
-                value = project.readEntry("qgis2web", key_string)[0]
+            value = project.readEntry("qgis2web", key_string)[0]
 
         return value
 
@@ -131,7 +130,7 @@ class WriterRegistry(object):
 
         default_params = getDefaultParams()
         read_params = default_params
-        for group, settings in default_params.items():
+        for group, settings in read_params.items():
             for param, default_value in settings.items():
                 value = self.readParamFromProject(param, default_value)
                 read_params[group][param] = value
