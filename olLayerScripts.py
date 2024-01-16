@@ -36,13 +36,10 @@ def writeLayersAndGroups(layers, groups, visible, interactive, folder, popup,
     layerVars = ""
     layer_names_id = {}
     vtLayers = []
-    for count, (layer, encode2json,
-                cluster, info) in enumerate(zip(layers, json, clustered,
+    for count, (layer, encode2json, cluster, info) in enumerate(zip(layers, json, clustered,
                                                 getFeatureInfo)):
         layer_names_id[layer.id()] = str(count)
-        if is25d(layer, canvas, restrictToExtent, extent):
-            pass
-        else:
+        if not is25d(layer, canvas, restrictToExtent, extent):
             (layerVar,
              vtLayers) = layerToJavascript(iface, layer, encode2json, matchCRS,
                                            interactive[count], cluster, info,
@@ -58,10 +55,9 @@ def writeLayersAndGroups(layers, groups, visible, interactive, folder, popup,
     (group_list, no_group_list,
      usedGroups) = getGroups(canvas, layers, restrictToExtent,
                              extent, groupedLayers)
-    layersList = []
-    # currentVT = ""
-    for layer in (group_list + no_group_list):
-        layersList.append(layer.replace("'", "\\'"))
+    layersList = [
+        layer.replace("'", "\\'") for layer in (group_list + no_group_list)
+    ]
     layersListString = "var layersList = [" + ",".join(layersList) + "];"
 
     fieldAliases = ""
@@ -70,7 +66,7 @@ def writeLayersAndGroups(layers, groups, visible, interactive, folder, popup,
     blend_mode = ""
     for count, (layer, labels) in enumerate(zip(layers, popup)):
         vts = layer.customProperty("VectorTilesReader/vector_tile_url")
-        sln = safeName(layer.name()) + "_" + str(count)
+        sln = f"{safeName(layer.name())}_{str(count)}"
         if (layer.type() == layer.VectorLayer and
                 layer.wkbType() != QgsWkbTypes.NoGeometry and
                 vts is None and
@@ -101,7 +97,7 @@ def layerToJavascript(iface, layer, encode2json, matchCRS, interactive,
                       cluster, info, restrictToExtent, extent, count,
                       vtLayers):
     (minResolution, maxResolution) = getScaleRes(layer)
-    layerName = safeName(layer.name()) + "_" + str(count)
+    layerName = f"{safeName(layer.name())}_{str(count)}"
     rawName = layer.name()
     layerAttr = getAttribution(layer)
     if layer.type() == layer.VectorLayer and not is25d(layer,
@@ -116,11 +112,10 @@ def layerToJavascript(iface, layer, encode2json, matchCRS, interactive,
         hmWeightMax = 0
         vts = layer.customProperty("VectorTilesReader/vector_tile_url")
         if vts is not None:
-            if vts not in vtLayers:
-                vtLayers.append(vts)
-                return getVT(vts), vtLayers
-            else:
+            if vts in vtLayers:
                 return "", vtLayers
+            vtLayers.append(vts)
+            return getVT(vts), vtLayers
         if isinstance(renderer, QgsHeatmapRenderer):
             (pointLayerType, hmRadius,
              hmRamp, hmWeight, hmWeightMax) = getHeatmap(layer, renderer)
@@ -170,11 +165,11 @@ def getScaleRes(layer):
 def getAttribution(layer):
     attrText = layer.attribution()
     attrUrl = layer.attributionUrl()
-    if attrText != "":
-        layerAttr = ' &middot; <a href="%s">%s</a>' % (attrUrl, attrText)
-    else:
-        layerAttr = " "
-    return layerAttr
+    return (
+        f' &middot; <a href="{attrUrl}">{attrText}</a>'
+        if attrText != ""
+        else " "
+    )
 
 
 def build25d(canvas, layer, count):
@@ -204,12 +199,11 @@ def build25d(canvas, layer, count):
         if not symbolLayer.paintEffect().effectList()[0].enabled():
             shadows = "'2015-07-15 10:00:00'"
     renderer.stopRender(renderContext)
-    osmb = """
+    return """
 var osmb = new OSMBuildings(map).date(new Date({shadows}));
-osmb.set(json_{sln}_{count});""".format(shadows=shadows,
-                                        sln=safeName(layer.name()),
-                                        count=str(count))
-    return osmb
+osmb.set(json_{sln}_{count});""".format(
+        shadows=shadows, sln=safeName(layer.name()), count=str(count)
+    )
 
 
 def getVisibility(mapLayers, layers, visible):
@@ -218,12 +212,8 @@ def getVisibility(mapLayers, layers, visible):
     for layer, layerObj, v in zip(mapLayers, layers, visible):
         vts = layerObj.customProperty("VectorTilesReader/vector_tile_url")
         if vts is None or vts != currentVT:
-            if vts is not None:
-                lname = "lyr_%s" % safeName(vts)
-            else:
-                lname = layer
-            visibility += "\n".join(["%s.setVisible(%s);" % (
-                lname, str(v).lower())])
+            lname = f"lyr_{safeName(vts)}" if vts is not None else layer
+            visibility += "\n".join([f"{lname}.setVisible({str(v).lower()});"])
             if vts is not None:
                 currentVT = vts
     return visibility
@@ -241,12 +231,14 @@ def buildGroups(groups, qms, layer_names_id):
                     continue
             if vts is not None:
                 continue
-            groupLayerObjs += ("lyr_" + safeName(layer.name()) + "_" +
-                               layer_names_id[layer.id()] + ",")
-        groupVars += ('''var %s = new ol.layer.Group({
+            groupLayerObjs += f"lyr_{safeName(layer.name())}_{layer_names_id[layer.id()]},"
+        groupVars += '''var %s = new ol.layer.Group({
                                 layers: [%s],
-                                title: "%s"});\n''' %
-                      ("group_" + safeName(group), groupLayerObjs, group))
+                                title: "%s"});\n''' % (
+            f"group_{safeName(group)}",
+            groupLayerObjs,
+            group,
+        )
         for layer in groupLayers:
             groupedLayers[layer.id()] = safeName(group)
     return (groupVars, groupedLayers)
@@ -259,11 +251,9 @@ def layersAnd25d(layers, canvas, restrictToExtent, extent, qms):
     for count, layer in enumerate(layers):
         if is25d(layer, canvas, restrictToExtent, extent):
             osmb = build25d(canvas, layer, count)
-        else:
-            if (qms and not isinstance(layer, TileLayer)) or not qms:
-                mapLayers.append("lyr_" + safeName(layer.name()) +
-                                 "_" + str(count))
-                layerObjs.append(layer)
+        elif (qms and not isinstance(layer, TileLayer)) or not qms:
+            mapLayers.append(f"lyr_{safeName(layer.name())}_{str(count)}")
+            layerObjs.append(layer)
     return (mapLayers, layerObjs, osmb)
 
 
@@ -274,32 +264,29 @@ def getGroups(canvas, layers, restrictToExtent, extent, groupedLayers):
     currentVT = ""
     for count, layer in enumerate(layers):
         vts = layer.customProperty("VectorTilesReader/vector_tile_url")
-        if (vts is not None):
-            if (vts != currentVT):
-                no_group_list.append("lyr_" + safeName(vts))
-                currentVT = vts
-        else:
+        if vts is None:
             try:
                 if is25d(layer, canvas, restrictToExtent, extent):
                     pass
                 elif layer.id() in groupedLayers:
                     groupName = groupedLayers[layer.id()]
                     if groupName not in usedGroups:
-                        group_list.append("group_" + safeName(groupName))
+                        group_list.append(f"group_{safeName(groupName)}")
                         usedGroups.append(groupName)
                 else:
-                    no_group_list.append("lyr_" + safeName(layer.name()) +
-                                         "_" + str(count))
+                    no_group_list.append(f"lyr_{safeName(layer.name())}_{str(count)}")
             except Exception:
                 if layer.id() in groupedLayers:
                     groupName = groupedLayers[layer.id()]
                     if groupName not in usedGroups:
-                        group_list.append("group_" + safeName(groupName))
+                        group_list.append(f"group_{safeName(groupName)}")
                         usedGroups.append(groupName)
                 else:
-                    no_group_list.append("lyr_" + safeName(layer.name()) +
-                                         "_" + str(count))
+                    no_group_list.append(f"lyr_{safeName(layer.name())}_{str(count)}")
 
+        elif (vts != currentVT):
+            no_group_list.append(f"lyr_{safeName(vts)}")
+            currentVT = vts
     return (group_list, no_group_list, usedGroups)
 
 
@@ -307,10 +294,11 @@ def getPopups(layer, labels, sln, fieldLabels, fieldAliases, fieldImages):
     fieldList = layer.fields()
     aliasFields = ""
     imageFields = ""
-    labelFields = ""
-    for field, label in zip(labels.keys(), labels.values()):
-        labelFields += "'%(field)s': '%(label)s', " % (
-            {"field": field.replace("'", "\\'"), "label": label})
+    labelFields = "".join(
+        "'%(field)s': '%(label)s', "
+        % ({"field": field.replace("'", "\\'"), "label": label})
+        for field, label in zip(labels.keys(), labels.values())
+    )
     labelFields = "{%(labelFields)s});\n" % (
         {"labelFields": labelFields})
     labelFields = "lyr_%(name)s.set('fieldLabels', " % (
@@ -430,17 +418,16 @@ def getLegend(subitems, layer, layerName):
         icons += ("""\\
     <img src="styles/legend/%(icon)s_%(count)s.png" /> %(text)s<br />""" %
                   {"icon": layerName, "count": count, "text": text})
-    legend = '''
+    return '''
     title: '%(name)s<br />%(icons)s'
-        });''' % {"icons": icons, "name": layer.name()}
-    return legend
+        });''' % {
+        "icons": icons,
+        "name": layer.name(),
+    }
 
 
 def isCluster(cluster, renderer):
-    if (cluster and isinstance(renderer, QgsSingleSymbolRenderer)):
-        cluster = True
-    else:
-        cluster = False
+    cluster = bool((cluster and isinstance(renderer, QgsSingleSymbolRenderer)))
     return cluster
 
 
@@ -453,8 +440,8 @@ def getVT(json_url):
     json = TileJSON(json_url)
     json.load()
     tile_url = json.tiles()[0].split("?")[0]
-    key_url = "%s?%s" % (tile_url, key)
-    layerCode = """
+    key_url = f"{tile_url}?{key}"
+    return """
         var lyr_%s = new ol.layer.VectorTile({
             source: new ol.source.VectorTile({
                 format: new ol.format.MVT(),
@@ -467,8 +454,12 @@ def getVT(json_url):
             style: style_%s,
             interactive: %s
         });
-        """ % (sln, key_url, sln, "false")
-    return layerCode
+        """ % (
+        sln,
+        key_url,
+        sln,
+        "false",
+    )
 
 
 def getHeatmap(layer, renderer):
@@ -477,11 +468,11 @@ def getHeatmap(layer, renderer):
     colorRamp = renderer.colorRamp()
     hmStart = colorRamp.color1().name()
     hmEnd = colorRamp.color2().name()
-    hmRamp = "['" + hmStart + "', "
+    hmRamp = f"['{hmStart}', "
     hmStops = colorRamp.stops()
     for stop in hmStops:
-        hmRamp += "'" + stop.color.name() + "', "
-    hmRamp += "'" + hmEnd + "']"
+        hmRamp += f"'{stop.color.name()}', "
+    hmRamp += f"'{hmEnd}']"
     hmWeight = renderer.weightExpression()
     fields = layer.fields()
     hmWeightId = fields.indexFromName(hmWeight)
@@ -492,13 +483,13 @@ def getHeatmap(layer, renderer):
 def getCRS(iface, matchCRS):
     if matchCRS:
         mapCRS = iface.mapCanvas().mapSettings().destinationCrs().authid()
-        crsConvert = """
+        return """
             {dataProjection: 'EPSG:4326', featureProjection: '%(d)s'}""" % {
-            "d": mapCRS}
+            "d": mapCRS
+        }
     else:
-        crsConvert = """
+        return """
             {dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857'}"""
-    return crsConvert
 
 
 def writeHeatmap(hmRadius, hmRamp, hmWeight, hmWeightMax):
@@ -588,14 +579,8 @@ def getWMS(source, layer, layerAttr, layerName, opacity, minResolution,
     layers = re.search(r"layers=(.*?)(?:&|$)", source).groups(0)[0]
     url = re.search(r"url=(.*?)(?:&|$)", source).groups(0)[0]
     metadata = layer.htmlMetadata()
-    needle = "<tr><td>%s</td><td>(.+?)</td>" % (
-        QCoreApplication.translate("QgsWmsProvider",
-                                   "WMS Version"))
-    result = re.search(needle, metadata)
-    if result:
-        version = result.group(1)
-    else:
-        version = ""
+    needle = f'<tr><td>{QCoreApplication.translate("QgsWmsProvider", "WMS Version")}</td><td>(.+?)</td>'
+    version = result.group(1) if (result := re.search(needle, metadata)) else ""
     return '''var lyr_%(n)s = new ol.layer.Tile({
                             source: new ol.source.TileWMS(({
                               url: "%(url)s",

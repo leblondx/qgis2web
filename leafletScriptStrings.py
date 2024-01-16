@@ -16,36 +16,38 @@ from qgis2web.utils import scaleToZoom, safeName
 
 
 def jsonScript(layer):
-    json = """
-        <script src="data/{layer}.js\"></script>""".format(layer=layer)
-    return json
+    return """
+        <script src="data/{layer}.js\"></script>""".format(
+        layer=layer
+    )
 
 
 def scaleDependentLayerScript(layer, layerName, cluster):
     max = layer.minimumScale()
     min = layer.maximumScale()
-    if cluster:
-        layerType = "cluster"
-    else:
-        layerType = "layer"
-    scaleDependentLayer = """
+    layerType = "cluster" if cluster else "layer"
+    return """
             if (map.getZoom() <= {min} && map.getZoom() >= {max}) {{
                 map.addLayer({layerType}_{layerName});
             }} else if (map.getZoom() > {min} || map.getZoom() < {max}) {{
                 map.removeLayer({layerType}_{layerName});
-            }}""".format(min=scaleToZoom(min), max=scaleToZoom(max),
-                         layerName=layerName, layerType=layerType)
-    return scaleDependentLayer
+            }}""".format(
+        min=scaleToZoom(min),
+        max=scaleToZoom(max),
+        layerName=layerName,
+        layerType=layerType,
+    )
 
 
 def scaleDependentLabelScript(layer, layerName):
-    if layer.labeling() is not None:
-        labelling = layer.labeling().settings()
-        sv = labelling.scaleVisibility
-        if sv:
-            min = scaleToZoom(labelling.minimumScale)
-            max = scaleToZoom(labelling.maximumScale)
-            scaleDependentLabel = """
+    if layer.labeling() is None:
+        return ""
+    labelling = layer.labeling().settings()
+    sv = labelling.scaleVisibility
+    if sv:
+        min = scaleToZoom(labelling.minimumScale)
+        max = scaleToZoom(labelling.maximumScale)
+        return """
                 if (map.hasLayer(layer_%(layerName)s)) {
                     if (map.getZoom() <= %(min)d && map.getZoom() >= %(max)d) {
                         layer_%(layerName)s.eachLayer(function (layer) {
@@ -56,10 +58,11 @@ def scaleDependentLabelScript(layer, layerName):
                             layer.closeTooltip();
                         });
                     }
-                }""" % {"min": min, "max": max, "layerName": layerName}
-            return scaleDependentLabel
-        else:
-            return ""
+                }""" % {
+            "min": min,
+            "max": max,
+            "layerName": layerName,
+        }
     else:
         return ""
 
@@ -121,10 +124,13 @@ def mapScript(extent, matchCRS, crsAuthId, measure, maxZoom, minZoom, bounds,
             worldCopyJump: false, """
     map += """
             zoomControl:true, maxZoom:""" + str(maxZoom)
-    map += """, minZoom:""" + str(minZoom) + """
+    map += (
+        f""", minZoom:{str(minZoom)}"""
+        + """
         })"""
+    )
     if extent == "Canvas extent":
-        map += """.fitBounds(""" + bounds + """);"""
+        map += f""".fitBounds({bounds});"""
     map += """
         var hash = new L.Hash(map);"""
     map += """
@@ -169,9 +175,8 @@ def mapScript(extent, matchCRS, crsAuthId, measure, maxZoom, minZoom, bounds,
 
 
 def featureGroupsScript():
-    featureGroups = """
+    return """
         var bounds_group = new L.featureGroup([]);"""
-    return featureGroups
 
 
 def extentScript(extent, restrictToExtent):
@@ -191,10 +196,12 @@ def extentScript(extent, restrictToExtent):
 
 
 def popFuncsScript(table):
-    popFuncs = """
+    return (
+        """
             var popupContent = %s;
-            layer.bindPopup(popupContent, {maxHeight: 400});""" % table
-    return popFuncs
+            layer.bindPopup(popupContent, {maxHeight: 400});"""
+        % table
+    )
 
 
 def popupScript(safeLayerName, popFuncs, highlight, popupsOnHover):
@@ -239,10 +246,13 @@ def iconLegend(symbol, catr, outputProjectFileName, layerName, catLegend, cnt):
                                                          QSize(iconSize,
                                                                iconSize))
     safeLabel = re.sub(r'[\W_]+', '', catr.label()) + str(cnt)
-    legendIcon.save(os.path.join(outputProjectFileName, "legend",
-                                 layerName + "_" + safeLabel + ".png"))
+    legendIcon.save(
+        os.path.join(
+            outputProjectFileName, "legend", f"{layerName}_{safeLabel}.png"
+        )
+    )
     catLegend += """<tr><td style="text-align: center;"><img src="legend/"""
-    catLegend += layerName + "_" + safeLabel + """.png" /></td><td>"""
+    catLegend += f'{layerName}_{safeLabel}.png" /></td><td>'
     catLegend += catr.label().replace("'", "\\'") + "</td></tr>"
     return catLegend
 
@@ -272,9 +282,10 @@ def pointToLayerFunction(safeLayerName, sl):
 
 
 def wfsScript(scriptTag):
-    wfs = """
-        <script src='{scriptTag}'></script>""".format(scriptTag=scriptTag)
-    return wfs
+    return """
+        <script src='{scriptTag}'></script>""".format(
+        scriptTag=scriptTag
+    )
 
 
 def clusterScript(safeLayerName):
@@ -293,12 +304,10 @@ def wmsScript(layer, safeLayerName, useWMS, useWMTS, identify, minZoom,
               maxZoom, count):
     d = parse_qs(layer.source())
     opacity = layer.renderer().opacity()
-    attr = ""
     attrText = layer.attribution().replace('\n', ' ').replace('\r', ' ')
     attrUrl = layer.attributionUrl()
     zIndex = count + 400
-    if attrText != "":
-        attr = u'<a href="%s">%s</a>' % (attrUrl, attrText)
+    attr = f'<a href="{attrUrl}">{attrText}</a>' if attrText != "" else ""
     wms = """
         map.createPane('pane_{safeLayerName}');
         map.getPane('pane_{safeLayerName}').style.zIndex = {zIndex};""".format(
@@ -308,10 +317,7 @@ def wmsScript(layer, safeLayerName, useWMS, useWMTS, identify, minZoom,
             zmin = "minNativeZoom: {zmin},".format(zmin=d['zmin'][0])
         else:
             zmin = ""
-        if 'zmax' in d:
-            zmax = "maxNativeZoom: {zmax}".format(zmax=d['zmax'][0])
-        else:
-            zmax = ""
+        zmax = "maxNativeZoom: {zmax}".format(zmax=d['zmax'][0]) if 'zmax' in d else ""
         wms += """
         var layer_{safeLayerName} = L.tileLayer('{url}', {{
             pane: 'pane_{safeLayerName}',
@@ -380,8 +386,7 @@ def wmsScript(layer, safeLayerName, useWMS, useWMTS, identify, minZoom,
 
 
 def rasterScript(layer, safeLayerName, zIndex):
-    zIndex = zIndex + 400
-    out_raster = 'data/' + safeLayerName + '.png'
+    out_raster = f'data/{safeLayerName}.png'
     pt2 = layer.extent()
     crsSrc = layer.crs()
     crsDest = QgsCoordinateReferenceSystem(4326)
@@ -390,20 +395,25 @@ def rasterScript(layer, safeLayerName, zIndex):
     except Exception:
         xform = QgsCoordinateTransform(crsSrc, crsDest)
     pt3 = xform.transformBoundingBox(pt2)
-    bounds = '[[' + str(pt3.yMinimum()) + ','
-    bounds += str(pt3.xMinimum()) + '],['
-    bounds += str(pt3.yMaximum()) + ','
-    bounds += str(pt3.xMaximum()) + ']]'
-    raster = """
+    bounds = f'[[{str(pt3.yMinimum())},'
+    bounds += f'{str(pt3.xMinimum())}],['
+    bounds += f'{str(pt3.yMaximum())},'
+    bounds += f'{str(pt3.xMaximum())}]]'
+    zIndex = zIndex + 400
+    raster = (
+        """
         map.createPane('pane_{safeLayerName}');
         map.getPane('pane_{safeLayerName}').style.zIndex = {zIndex};
         var img_{safeLayerName} = '{out_raster}';
         var img_bounds_{safeLayerName} = {bounds};
-        var layer_{safeLayerName} = """.format(safeLayerName=safeLayerName,
-                                               zIndex=zIndex,
-                                               out_raster=out_raster,
-                                               bounds=bounds)
-    raster += "new L.imageOverlay(img_"
+        var layer_{safeLayerName} = """.format(
+            safeLayerName=safeLayerName,
+            zIndex=zIndex,
+            out_raster=out_raster,
+            bounds=bounds,
+        )
+        + "new L.imageOverlay(img_"
+    )
     raster += """{sln},
                                               img_bounds_{sln},
                                               {{pane: 'pane_{sln}'}});
@@ -413,14 +423,14 @@ def rasterScript(layer, safeLayerName, zIndex):
 
 
 def titleSubScript(webmap_head, level, pos):
-    if pos == "upper right":
-        positionOpt = u"{'position':'topright'}"
-    if pos == "lower right":
-        positionOpt = u"{'position':'bottomright'}"
     if pos == "lower left":
         positionOpt = u"{'position':'bottomleft'}"
-    if pos == "upper left":
+    elif pos == "lower right":
+        positionOpt = u"{'position':'bottomright'}"
+    elif pos == "upper left":
         positionOpt = u"{'position':'topleft'}"
+    elif pos == "upper right":
+        positionOpt = u"{'position':'topright'}"
     titleSub = ""
     if level == 1:
         titleSub += """
@@ -487,8 +497,8 @@ def addLayersList(basemapList, matchCRS, layer_list, cluster, legends,
         controlStart = """
         var baseMaps = {"""
         for count, basemap in enumerate(basemapList):
-            controlStart += comma + "'" + str(basemap)
-            controlStart += "': basemap" + str(count)
+            controlStart += f"{comma}'{str(basemap)}"
+            controlStart += f"': basemap{str(count)}"
             comma = ", "
         controlStart += "};"
     controlStart += """
@@ -499,20 +509,20 @@ def addLayersList(basemapList, matchCRS, layer_list, cluster, legends,
     for i, clustered in zip(reversed(layer_list), reversed(cluster)):
         try:
             rawLayerName = i.name()
-            safeLayerName = safeName(rawLayerName) + "_" + str(lyrCount)
+            safeLayerName = f"{safeName(rawLayerName)}_{str(lyrCount)}"
             lyrCount -= 1
             if i.type() == QgsMapLayer.VectorLayer:
                 # testDump = i.renderer().dump()
                 if clustered and i.geometryType() == QgsWkbTypes.PointGeometry:
                     new_layer = "'" + legends[safeLayerName].replace("'", "\'")
-                    new_layer += "': cluster_""" + safeLayerName + ","
+                    new_layer += f"': cluster_{safeLayerName},"
                 else:
                     new_layer = "'" + legends[safeLayerName].replace("'", "\'")
-                    new_layer += "': layer_" + safeLayerName + ","
+                    new_layer += f"': layer_{safeLayerName},"
                 layersList += new_layer
             elif i.type() == QgsMapLayer.RasterLayer:
                 new_layer = '"' + rawLayerName.replace("'", "\'") + '"'
-                new_layer += ": layer_" + safeLayerName + ""","""
+                new_layer += f": layer_{safeLayerName},"
                 layersList += new_layer
         except Exception:
             QgsMessageLog.logMessage(traceback.format_exc(), "qgis2web",
@@ -526,14 +536,16 @@ def addLayersList(basemapList, matchCRS, layer_list, cluster, legends,
 
 
 def scaleBar():
-    scaleBar = "L.control.scale({position: 'bottomleft', "
-    scaleBar += "maxWidth: 100, metric: true, imperial: false, "
+    scaleBar = (
+        "L.control.scale({position: 'bottomleft', "
+        + "maxWidth: 100, metric: true, imperial: false, "
+    )
     scaleBar += "updateWhenIdle: false}).addTo(map);"
     return scaleBar
 
 
 def addressSearchScript():
-    addressSearch = """
+    return """
         var osmGeocoder = new L.Control.Geocoder({
             collapsed: true,
             position: 'topleft',
@@ -545,7 +557,6 @@ def addressSearchScript():
         document.getElementsByClassName('leaflet-control-geocoder-icon')[0]
         .title += 'Search for a place';
         """
-    return addressSearch
 
 
 def getVTStyles(vtStyles):
@@ -559,7 +570,7 @@ def getVTStyles(vtStyles):
             for style in styles:
                 if style == "":
                     style = "{}"
-                vtStyleString += "%s," % style
+                vtStyleString += f"{style},"
             vtStyleString += "],"
             vtStyleString = vtStyleString.replace(",]", "]")
         vtStyleString += "}"
@@ -568,18 +579,19 @@ def getVTStyles(vtStyles):
 
 
 def getVTLabels(vtLabels):
-    labels = []
-    for k, v in vtLabels.items():
-        labels.append("""
+    labels = [
+        """
     function label_%s(feature, featureLayer, vtLayer, tileCoords) {
         var context = {
             feature: feature,
             variables: {}
         };
         %s
-    }""" % (safeName(k), v))
-    labelString = "".join(labels)
-    return labelString
+    }"""
+        % (safeName(k), v)
+        for k, v in vtLabels.items()
+    ]
+    return "".join(labels)
 
 
 def endHTMLscript(wfsLayers, layerSearch, filterItems, labelCode, labels,
@@ -598,10 +610,12 @@ def endHTMLscript(wfsLayers, layerSearch, filterItems, labelCode, labels,
         %s""" % labelCode
         endHTML += labels
     if len(mapUnitLayers) > 0:
-        lyrs = []
-        for layer in mapUnitLayers:
-            lyrs.append("""
-            layer_%s.setStyle(style_%s_0);""" % (layer, layer))
+        lyrs = [
+            """
+            layer_%s.setStyle(style_%s_0);"""
+            % (layer, layer)
+            for layer in mapUnitLayers
+        ]
         lyrScripts = "".join(lyrs)
         endHTML += """
         newM2px();
@@ -646,10 +660,14 @@ def endHTMLscript(wfsLayers, layerSearch, filterItems, labelCode, labels,
         document.getElementById("all").appendChild(col2);
         col1.appendChild(mapDiv)
         var Filters = {"""
-        filterList = []
-        for item in range(0, filterNum):
-            filterList.append('"' + filterItems[item]["name"] + '": "' +
-                              filterItems[item]["type"] + '"')
+        filterList = [
+            '"'
+            + filterItems[item]["name"]
+            + '": "'
+            + filterItems[item]["type"]
+            + '"'
+            for item in range(0, filterNum)
+        ]
         endHTML += ",".join(filterList) + "};"
         endHTML += r"""
         function filterFunc() {
@@ -744,13 +762,9 @@ def endHTMLscript(wfsLayers, layerSearch, filterItems, labelCode, labels,
         }"""
         for item in range(0, filterNum):
             itemName = filterItems[item]["name"]
-            if filterItems[item]["type"] in ["str", "bool"]:
+            if filterItems[item]["type"] == "str":
                 selSize = 2
-                if filterItems[item]["type"] == "str":
-                    if len(filterItems[item]["values"]) > 10:
-                        selSize = 10
-                    else:
-                        selSize = len(filterItems[item]["values"])
+                selSize = min(len(filterItems[item]["values"]), 10)
                 endHTML += """
             document.getElementById("menu").appendChild(
                 document.createElement("div"));
@@ -793,7 +807,51 @@ def endHTMLscript(wfsLayers, layerSearch, filterItems, labelCode, labels,
             }};
             div_{nameS}.appendChild(reset_{nameS});
                 """.format(name=itemName, nameS=safeName(itemName))
-            if filterItems[item]["type"] in ["int", "real"]:
+            elif filterItems[item]["type"] == "bool":
+                selSize = 2
+                endHTML += """
+            document.getElementById("menu").appendChild(
+                document.createElement("div"));
+            var div_{nameS} = document.createElement('div');
+            div_{nameS}.id = "div_{nameS}";
+            div_{nameS}.className= "filterselect";
+            document.getElementById("menu").appendChild(div_{nameS});
+            sel_{nameS} = document.createElement('select');
+            sel_{nameS}.multiple = true;
+            sel_{nameS}.size = {s};
+            sel_{nameS}.id = "sel_{nameS}";
+            var {nameS}_options_str = "<option value='' unselected></option>";
+            sel_{nameS}.onchange = function(){{filterFunc()}};
+            """.format(name=itemName, nameS=safeName(itemName), s=selSize)
+                for entry in filterItems[item]["values"]:
+                    try:
+                        safeEntry = entry.replace("'", "&apos;")
+                    except:
+                        safeEntry = entry
+                    endHTML += """
+            {nameS}_options_str  += '<option value="{e}">{e}</option>';
+                        """.format(e=safeEntry,
+                                   name=itemName, nameS=safeName(itemName))
+                endHTML += """
+            sel_{nameS}.innerHTML = {nameS}_options_str;
+            div_{nameS}.appendChild(sel_{nameS});
+            var lab_{nameS} = document.createElement('div');
+            lab_{nameS}.innerHTML = '{name}';
+            lab_{nameS}.className = 'filterlabel';
+            div_{nameS}.appendChild(lab_{nameS});
+            var reset_{nameS} = document.createElement('div');
+            reset_{nameS}.innerHTML = 'clear filter';
+            reset_{nameS}.className = 'filterlabel';
+            reset_{nameS}.onclick = function() {{
+                var options = document.getElementById("sel_{nameS}").options;
+                for (var i=0; i < options.length; i++) {{
+                    options[i].selected = false;
+                }}
+                filterFunc();
+            }};
+            div_{nameS}.appendChild(reset_{nameS});
+                """.format(name=itemName, nameS=safeName(itemName))
+            if filterItems[item]["type"] == "int":
                 endHTML += """
             document.getElementById("menu").appendChild(
                 document.createElement("div"));
@@ -815,8 +873,7 @@ def endHTMLscript(wfsLayers, layerSearch, filterItems, labelCode, labels,
             document.getElementById("menu").appendChild(reset_{nameS});
             var sel_{nameS} = document.getElementById('div_{nameS}');
             """ .format(name=itemName, nameS=safeName(itemName))
-                if filterItems[item]["type"] == "int":
-                    endHTML += """
+                endHTML += """
             noUiSlider.create(sel_{nameS}, {{
                 connect: true,
                 start: [{min}, {max}],
@@ -838,10 +895,31 @@ def endHTMLscript(wfsLayers, layerSearch, filterItems, labelCode, labels,
             val_{nameS}.innerHTML = values.join(' - ');
                 filterFunc()
             }});""".format(name=itemName, nameS=safeName(itemName),
-                           min=filterItems[item]["values"][0],
-                           max=filterItems[item]["values"][1])
-                else:
-                    endHTML += """
+                       min=filterItems[item]["values"][0],
+                       max=filterItems[item]["values"][1])
+            elif filterItems[item]["type"] == "real":
+                endHTML += """
+            document.getElementById("menu").appendChild(
+                document.createElement("div"));
+            var div_{nameS} = document.createElement("div");
+            div_{nameS}.id = "div_{nameS}";
+            div_{nameS}.className = "slider";
+            document.getElementById("menu").appendChild(div_{nameS});
+            var lab_{nameS} = document.createElement('div');
+            lab_{nameS}.innerHTML  = '{name}: <span id="val_{nameS}"></span>';
+            lab_{nameS}.className = 'filterlabel';
+            document.getElementById("menu").appendChild(lab_{nameS});
+            var reset_{nameS} = document.createElement('div');
+            reset_{nameS}.innerHTML = 'clear filter';
+            reset_{nameS}.className = 'filterlabel';
+            lab_{nameS}.className = 'filterlabel';
+            reset_{nameS}.onclick = function() {{
+                sel_{nameS}.noUiSlider.reset();
+            }};
+            document.getElementById("menu").appendChild(reset_{nameS});
+            var sel_{nameS} = document.getElementById('div_{nameS}');
+            """ .format(name=itemName, nameS=safeName(itemName))
+                endHTML += """
             noUiSlider.create(sel_{nameS}, {{
                 connect: true,
                 start: [{min}, {max}],
@@ -856,8 +934,8 @@ def endHTMLscript(wfsLayers, layerSearch, filterItems, labelCode, labels,
                 filterFunc()
             }});
             """.format(name=itemName, nameS=safeName(itemName),
-                       min=filterItems[item]["values"][0],
-                       max=filterItems[item]["values"][1])
+                   min=filterItems[item]["values"][0],
+                   max=filterItems[item]["values"][1])
             if filterItems[item]["type"] in ["date", "time", "datetime"]:
                 startDate = filterItems[item]["values"][0]
                 endDate = filterItems[item]["values"][1]

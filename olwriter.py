@@ -102,9 +102,8 @@ class OpenLayersWriter(Writer):
                 folder):
         QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
         mapSettings = iface.mapCanvas().mapSettings()
-        controlCount = 0
         stamp = datetime.now().strftime("%Y_%m_%d-%H_%M_%S_%f")
-        folder = os.path.join(folder, 'qgis2web_' + stamp)
+        folder = os.path.join(folder, f'qgis2web_{stamp}')
         restrictToExtent = settings["Scale/Zoom"]["Restrict to extent"]
         matchCRS = settings["Appearance"]["Match project CRS"]
         precision = settings["Data export"]["Precision"]
@@ -136,13 +135,13 @@ class OpenLayersWriter(Writer):
                                     clustered, getFeatureInfo, iface,
                                     restrictToExtent, extent, mapbounds,
                                     mapSettings.destinationCrs().authid())
+        controlCount = 0
         (jsAddress,
          cssAddress, controlCount) = writeHTMLstart(settings, controlCount,
                                                     osmb, feedback)
         (geojsonVars, wfsVars, styleVars) = writeScriptIncludes(layers,
                                                                 json, matchCRS)
-        popupLayers = "popupLayers = [%s];" % ",".join(
-            ['1' for field in popup])
+        popupLayers = f"""popupLayers = [{",".join(['1' for _ in popup])}];"""
         project = QgsProject.instance()
         controls = getControls(project, measureTool, geolocateUser)
         layersList = getLayersList(addLayersList)
@@ -152,7 +151,7 @@ class OpenLayersWriter(Writer):
         (geolocateCode, controlCount) = geolocateStyle(geolocateUser,
                                                        controlCount)
         backgroundColor += geolocateCode
-        mapextent = "extent: %s," % mapbounds if restrictToExtent else ""
+        mapextent = f"extent: {mapbounds}," if restrictToExtent else ""
         onHover = str(popupsOnHover).lower()
         highlight = str(highlightFeatures).lower()
         highlightFill = mapSettings.selectionColor().name()
@@ -180,46 +179,47 @@ class OpenLayersWriter(Writer):
         mapSize = iface.mapCanvas().size()
         exp_js = getExpJS()
         grid = getGrid(project)
-        values = {"@PAGETITLE@": pageTitle,
-                  "@CSSADDRESS@": cssAddress,
-                  "@EXTRACSS@": extracss,
-                  "@JSADDRESS@": jsAddress,
-                  "@MAP_WIDTH@": str(mapSize.width()) + "px",
-                  "@MAP_HEIGHT@": str(mapSize.height()) + "px",
-                  "@OL3_STYLEVARS@": styleVars,
-                  "@OL3_BACKGROUNDCOLOR@": backgroundColor,
-                  "@OL3_POPUP@": ol3popup,
-                  "@OL3_GEOJSONVARS@": geojsonVars,
-                  "@OL3_WFSVARS@": wfsVars,
-                  "@OL3_PROJ4@": proj4,
-                  "@OL3_PROJDEF@": proj,
-                  "@OL3_GEOCODINGLINKS@": geocodingLinks,
-                  "@OL3_GEOCODINGJS@": geocodingJS,
-                  "@QGIS2WEBJS@": ol3qgis2webjs,
-                  "@OL3_LAYERSWITCHER@": ol3layerswitcher,
-                  "@OL3_LAYERS@": ol3layers,
-                  "@OL3_MEASURESTYLE@": measureStyle,
-                  "@EXP_JS@": exp_js,
-                  "@LEAFLET_ADDRESSCSS@": "",
-                  "@LEAFLET_MEASURECSS@": "",
-                  "@LEAFLET_LAYERFILTERCSS@": "",
-                  "@LEAFLET_EXTRAJS@": "",
-                  "@LEAFLET_ADDRESSJS@": "",
-                  "@LEAFLET_MEASUREJS@": "",
-                  "@LEAFLET_CRSJS@": "",
-                  "@LEAFLET_LAYERSEARCHCSS@": "",
-                  "@LEAFLET_LAYERSEARCHJS@": "",
-                  "@LEAFLET_LAYERFILTERJS@": "",
-                  "@LEAFLET_CLUSTERCSS@": "",
-                  "@LEAFLET_CLUSTERJS@": "",
-                  "@MBGLJS_MEASURE@": "",
-                  "@MBGLJS_LOCATE@": ""}
+        values = {
+            "@PAGETITLE@": pageTitle,
+            "@CSSADDRESS@": cssAddress,
+            "@EXTRACSS@": extracss,
+            "@JSADDRESS@": jsAddress,
+            "@MAP_WIDTH@": f"{str(mapSize.width())}px",
+            "@MAP_HEIGHT@": f"{str(mapSize.height())}px",
+            "@OL3_STYLEVARS@": styleVars,
+            "@OL3_BACKGROUNDCOLOR@": backgroundColor,
+            "@OL3_POPUP@": ol3popup,
+            "@OL3_GEOJSONVARS@": geojsonVars,
+            "@OL3_WFSVARS@": wfsVars,
+            "@OL3_PROJ4@": proj4,
+            "@OL3_PROJDEF@": proj,
+            "@OL3_GEOCODINGLINKS@": geocodingLinks,
+            "@OL3_GEOCODINGJS@": geocodingJS,
+            "@QGIS2WEBJS@": ol3qgis2webjs,
+            "@OL3_LAYERSWITCHER@": ol3layerswitcher,
+            "@OL3_LAYERS@": ol3layers,
+            "@OL3_MEASURESTYLE@": measureStyle,
+            "@EXP_JS@": exp_js,
+            "@LEAFLET_ADDRESSCSS@": "",
+            "@LEAFLET_MEASURECSS@": "",
+            "@LEAFLET_LAYERFILTERCSS@": "",
+            "@LEAFLET_EXTRAJS@": "",
+            "@LEAFLET_ADDRESSJS@": "",
+            "@LEAFLET_MEASUREJS@": "",
+            "@LEAFLET_CRSJS@": "",
+            "@LEAFLET_LAYERSEARCHCSS@": "",
+            "@LEAFLET_LAYERSEARCHJS@": "",
+            "@LEAFLET_LAYERFILTERJS@": "",
+            "@LEAFLET_CLUSTERCSS@": "",
+            "@LEAFLET_CLUSTERJS@": "",
+            "@MBGLJS_MEASURE@": "",
+            "@MBGLJS_LOCATE@": "",
+        }
         with open(os.path.join(folder, "index.html"), "w") as f:
             htmlTemplate = htmlTemplate
             if htmlTemplate == "":
                 htmlTemplate = "full-screen"
-            templateOutput = replaceInTemplate(
-                htmlTemplate + ".html", values)
+            templateOutput = replaceInTemplate(f"{htmlTemplate}.html", values)
             templateOutput = re.sub(r'\n[\s_]+\n', '\n', templateOutput)
             f.write(templateOutput)
         values = {"@GEOLOCATEHEAD@": geolocateHead,
@@ -367,14 +367,16 @@ def getBackground(mapSettings, widgetAccent, widgetBackground):
 
 
 def getCRSView(mapextent, fullextent, maxZoom, minZoom, matchCRS, mapSettings):
-    units = ['m', 'km', 'ft', '', '', '', 'degrees', '', 'cm', 'mm', '']
     proj4 = ""
     proj = ""
     view = "%s maxZoom: %d, minZoom: %d" % (mapextent, maxZoom, minZoom)
+    units = ['m', 'km', 'ft', '', '', '', 'degrees', '', 'cm', 'mm', '']
     if matchCRS:
-        proj4 = """
+        proj4 = (
+            """
 <script src="resources/proj4.js">"""
-        proj4 += "</script>"
+            + "</script>"
+        )
         proj = "<script>proj4.defs('{epsg}','{defn}');</script>".format(
             epsg=mapSettings.destinationCrs().authid(),
             defn=mapSettings.destinationCrs().toProj4())

@@ -232,8 +232,7 @@ class MainDialog(QDialog, FORM_CLASS):
         """
         Shows an error message in the preview window
         """
-        html = "<html>"
-        html += "<head></head>"
+        html = "<html>" + "<head></head>"
         html += "<style>body {font-family: sans-serif;}</style>"
         html += "<body><h1>Error</h1>"
         html += "<p>qgis2web produced an error:</p><code>"
@@ -246,11 +245,10 @@ class MainDialog(QDialog, FORM_CLASS):
         """
         Shows a feedback message in the preview window
         """
-        html = "<html>"
-        html += "<head></head>"
+        html = "<html>" + "<head></head>"
         html += "<style>body {font-family: sans-serif;}</style>"
-        html += "<body><h1>{}</h1>".format(title)
-        html += "<p>{}</p>".format(message)
+        html += f"<body><h1>{title}</h1>"
+        html += f"<p>{message}</p>"
         html += "</body></html>"
         if self.preview:
             self.preview.setHtml(html)
@@ -260,39 +258,33 @@ class MainDialog(QDialog, FORM_CLASS):
         for param, value in specificParams.items():
             treeParam = self.appearanceParams.findItems(
                 param, Qt.MatchExactly | Qt.MatchRecursive)[0]
-            if currentWriter == OpenLayersWriter:
-                if value == "OL3":
-                    treeParam.setDisabled(False)
-                    if treeParam.combo:
-                        treeParam.combo.setEnabled(True)
-                else:
-                    treeParam.setDisabled(True)
-                    if treeParam.combo:
-                        treeParam.combo.setEnabled(False)
-
+            if (
+                currentWriter == OpenLayersWriter
+                and value == "OL3"
+                or currentWriter != OpenLayersWriter
+                and value != "OL3"
+            ):
+                treeParam.setDisabled(False)
+                if treeParam.combo:
+                    treeParam.combo.setEnabled(True)
             else:
-                if value == "OL3":
-                    treeParam.setDisabled(True)
-                    if treeParam.combo:
-                        treeParam.combo.setEnabled(False)
-                else:
-                    treeParam.setDisabled(False)
-                    if treeParam.combo:
-                        treeParam.combo.setEnabled(True)
+                treeParam.setDisabled(True)
+                if treeParam.combo:
+                    treeParam.combo.setEnabled(False)
+
         for option, value in specificOptions.items():
             treeOptions = self.layersTree.findItems(option, Qt.MatchExactly |
                                                     Qt.MatchRecursive)
             for treeOption in treeOptions:
-                if currentWriter == OpenLayersWriter:
-                    if value == "OL3":
-                        treeOption.setDisabled(False)
-                    else:
-                        treeOption.setDisabled(True)
+                if (
+                    currentWriter == OpenLayersWriter
+                    and value == "OL3"
+                    or currentWriter != OpenLayersWriter
+                    and value != "OL3"
+                ):
+                    treeOption.setDisabled(False)
                 else:
-                    if value == "OL3":
-                        treeOption.setDisabled(True)
-                    else:
-                        treeOption.setDisabled(False)
+                    treeOption.setDisabled(True)
 
     def createPreview(self):
         writer = self.createWriter()
@@ -306,11 +298,11 @@ class MainDialog(QDialog, FORM_CLASS):
         as to why the preview cannot be automatically generated
         """
         writer = self.createWriter()
-        total_features = 0
-        for layer in writer.layers:
-            if isinstance(layer, QgsVectorLayer):
-                total_features += layer.featureCount()
-
+        total_features = sum(
+            layer.featureCount()
+            for layer in writer.layers
+            if isinstance(layer, QgsVectorLayer)
+        )
         if total_features > int(self.previewFeatureLimit.text()):
             # Too many features => too slow!
             return (False, self.tr('<p>A large number of features are '
@@ -379,9 +371,8 @@ class MainDialog(QDialog, FORM_CLASS):
                         item = TreeLayerItem(self.iface, layer,
                                              self.layersTree, dlg)
                         self.layers_item.addChild(item)
-                    else:
-                        if layer_parent not in tree_groups:
-                            tree_groups.append(layer_parent)
+                    elif layer_parent not in tree_groups:
+                        tree_groups.append(layer_parent)
                 except Exception:
                     QgsMessageLog.logMessage(traceback.format_exc(),
                                              "qgis2web",
@@ -419,19 +410,20 @@ class MainDialog(QDialog, FORM_CLASS):
                         continue
                     options.append(f.name())
                 for option in options:
-                    displayStr = layer.name() + ": " + option
+                    displayStr = f"{layer.name()}: {option}"
                     self.layer_search_combo.insertItem(0, displayStr)
                     sln = utils.safeName(layer.name())
                     self.layer_search_combo.setItemData(
                         self.layer_search_combo.findText(displayStr),
-                        sln + "_" + str(count))
+                        f"{sln}_{str(count)}",
+                    )
 
     def populateAttrFilter(self):
         self.layer_filter_select.clear()
         (layers, groups, popup, visible, interactive,
          json, cluster, getFeatureInfo) = self.getLayersAndGroups()
         options = []
-        for count, layer in enumerate(layers):
+        for layer in layers:
             if layer.type() == layer.VectorLayer:
                 fields = layer.fields()
                 for f in fields:
@@ -442,19 +434,15 @@ class MainDialog(QDialog, FORM_CLASS):
                     if utils.boilType(f.typeName()) in ["int", "str", "real",
                                                         "date", "bool",
                                                         "time", "datetime"]:
-                        options.append([f.name() + ": " +
-                                        utils.boilType(f.typeName()),
-                                        layer.name()])
+                        options.append([f"{f.name()}: {utils.boilType(f.typeName())}", layer.name()])
         preCleanOptions = {}
         for entry in options:
             if entry[0] not in list(preCleanOptions.keys()):
-                preCleanOptions[entry[0]] = ": " + entry[1]
+                preCleanOptions[entry[0]] = f": {entry[1]}"
             else:
                 preCleanOptions[entry[0]] = "| ".join(
                     [preCleanOptions[entry[0]], entry[1]])
-        options = []
-        for key, value in preCleanOptions.items():
-            options.append(key + value)
+        options = [key + value for key, value in preCleanOptions.items()]
         cleanOptions = list(set(options))
         for option in cleanOptions:
             self.layer_filter_select.insertItem(0, option)
@@ -519,13 +507,13 @@ class MainDialog(QDialog, FORM_CLASS):
 
         subitem = TreeSettingItem(parent_item, tree_widget,
                                   parameter, default_value, action)
-        if parameter == 'Layer search':
-            self.layer_search_combo = subitem.combo
         if parameter == 'Attribute filter':
             self.layer_filter_select = subitem.list
         elif parameter == 'Exporter':
             self.exporter_combo = subitem.combo
 
+        elif parameter == 'Layer search':
+            self.layer_search_combo = subitem.combo
         return subitem
 
     def setStateToWriter(self, writer):
@@ -656,8 +644,7 @@ class MainDialog(QDialog, FORM_CLASS):
                 attrDict = {}
                 for attr in pop:
                     attrDict['attr'] = pop[attr]
-                    layer.setCustomProperty("qgis2web/popup/" + attr,
-                                            pop[attr])
+                    layer.setCustomProperty(f"qgis2web/popup/{attr}", pop[attr])
                 layer.setCustomProperty("qgis2web/Visible", vis)
                 layer.setCustomProperty("qgis2web/Interactive", int)
         except Exception:
@@ -799,36 +786,36 @@ class TreeLayerItem(QTreeWidgetItem):
             for f in fields:
                 fieldIndex = fields.indexFromName(f.name())
                 editorWidget = layer.editorWidgetSetup(fieldIndex).type()
-                if editorWidget == 'Hidden':
-                    continue
-                options.append(f.name())
+                if editorWidget != 'Hidden':
+                    options.append(f.name())
             for option in options:
                 self.attr = QTreeWidgetItem(self)
                 self.attrWidget = QComboBox()
                 self.attrWidget.addItem("no label")
                 self.attrWidget.addItem("inline label")
                 self.attrWidget.addItem("header label")
-                custProp = layer.customProperty("qgis2web/popup/" + option)
+                custProp = layer.customProperty(f"qgis2web/popup/{option}")
                 if (custProp != "" and custProp is not None):
                     self.attrWidget.setCurrentIndex(
                         self.attrWidget.findText(
-                            layer.customProperty("qgis2web/popup/" + option)))
+                            layer.customProperty(f"qgis2web/popup/{option}")
+                        )
+                    )
                 self.attr.setText(1, option)
                 self.popupItem.addChild(self.attr)
                 tree.setItemWidget(self.attr, 2, self.attrWidget)
             self.addChild(self.popupItem)
-        else:
-            if layer.providerType() == 'wms':
-                self.getFeatureInfoItem = QTreeWidgetItem(self)
-                self.getFeatureInfoCheck = QCheckBox()
-                if layer.customProperty("qgis2web/GetFeatureInfo") == 2:
-                    self.getFeatureInfoCheck.setChecked(True)
-                self.getFeatureInfoItem.setText(0, "Enable GetFeatureInfo?")
-                self.getFeatureInfoCheck.stateChanged.connect(
-                    self.changeGetFeatureInfo)
-                self.addChild(self.getFeatureInfoItem)
-                tree.setItemWidget(self.getFeatureInfoItem, 1,
-                                   self.getFeatureInfoCheck)
+        elif layer.providerType() == 'wms':
+            self.getFeatureInfoItem = QTreeWidgetItem(self)
+            self.getFeatureInfoCheck = QCheckBox()
+            if layer.customProperty("qgis2web/GetFeatureInfo") == 2:
+                self.getFeatureInfoCheck.setChecked(True)
+            self.getFeatureInfoItem.setText(0, "Enable GetFeatureInfo?")
+            self.getFeatureInfoCheck.stateChanged.connect(
+                self.changeGetFeatureInfo)
+            self.addChild(self.getFeatureInfoItem)
+            tree.setItemWidget(self.getFeatureInfoItem, 1,
+                               self.getFeatureInfoCheck)
 
     @property
     def popup(self):
@@ -840,8 +827,7 @@ class TreeLayerItem(QTreeWidgetItem):
                 popupVal = self.tree.itemWidget(self.child(p), 2).currentText()
                 pair = (item, popupVal)
                 popup.append(pair)
-        popup = OrderedDict(popup)
-        return popup
+        return OrderedDict(popup)
 
     @property
     def visible(self):

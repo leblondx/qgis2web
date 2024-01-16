@@ -50,7 +50,7 @@ def processLayer(layer):
         clazz = processRule(rule)
         classes.append(clazz)
 
-    layerData = {
+    return {
         "LAYER": {
             "NAME": _quote(layer.get("name", "")),
             "STATUS": "ON",
@@ -58,7 +58,6 @@ def processLayer(layer):
             "CLASSES": classes,
         }
     }
-    return layerData
 
 
 def processRule(rule):
@@ -108,19 +107,17 @@ def convertExpression(exp):
         funcName = func.get(exp[0], None)
         if funcName is None:
             _warnings.append(
-                "Unsupported expression function for MapServer conversion: '%s'"
-                % exp[0]
+                f"Unsupported expression function for MapServer conversion: '{exp[0]}'"
             )
             return None
         elif funcName == "PropertyName":
-            return '"[%s]"' % exp[1]
+            return f'"[{exp[1]}]"'
         else:
             arg1 = convertExpression(exp[1])
-            if len(exp) == 3:
-                arg2 = convertExpression(exp[2])
-                return "(%s %s %s)" % (arg1, funcName, arg2)
-            else:
-                return "%s(%s)" % (funcName, arg1)
+            if len(exp) != 3:
+                return f"{funcName}({arg1})"
+            arg2 = convertExpression(exp[2])
+            return f"({arg1} {funcName} {arg2})"
     else:
         try:
             f = float(exp)
@@ -131,19 +128,19 @@ def convertExpression(exp):
 
 def processSymbolizer(sl):
     symbolizerType = sl["kind"]
-    if symbolizerType == "Icon":
-        symbolizer = _iconSymbolizer(sl)
-    if symbolizerType == "Line":
-        symbolizer = _lineSymbolizer(sl)
     if symbolizerType == "Fill":
         symbolizer = _fillSymbolizer(sl)
-    if symbolizerType == "Mark":
+    elif symbolizerType == "Icon":
+        symbolizer = _iconSymbolizer(sl)
+    elif symbolizerType == "Line":
+        symbolizer = _lineSymbolizer(sl)
+    elif symbolizerType == "Mark":
         symbolizer = _markSymbolizer(sl)
-    if symbolizerType == "Text":
-        symbolizer = _textSymbolizer(sl)
-    if symbolizerType == "Raster":
+    elif symbolizerType == "Raster":
         symbolizer = _rasterSymbolizer(sl)
 
+    elif symbolizerType == "Text":
+        symbolizer = _textSymbolizer(sl)
     geom = _geometryFromSymbolizer(sl)
     if geom is not None:
         _warnings.append("Derived geometries are not supported in mapbox gl")
@@ -152,10 +149,7 @@ def processSymbolizer(sl):
 
 
 def _symbolProperty(sl, name, default=None):
-    if name in sl:
-        return convertExpression(sl[name])
-    else:
-        return default
+    return convertExpression(sl[name]) if name in sl else default
 
 
 def _textSymbolizer(sl):
@@ -217,14 +211,13 @@ def _lineSymbolizer(sl, graphicStrokeLayer=0):
     if dasharray is not None:
         style["PATTERN"] = dasharray
     if offset is not None:
-        style["OFFSET"] = "%s -99" % str(offset)
+        style["OFFSET"] = f"{str(offset)} -99"
 
     return style
 
 
 def _geometryFromSymbolizer(sl):
-    geomExpr = convertExpression(sl.get("geometry", None))
-    return geomExpr
+    return convertExpression(sl.get("geometry", None))
 
 
 def _createSymbol(sl):
@@ -232,7 +225,7 @@ def _createSymbol(sl):
     symbolizerType = sl["kind"]
     if symbolizerType == "Icon":
         path = os.path.basename(sl["image"])
-        name = "icon_" + os.path.splitext(path)[0]
+        name = f"icon_{os.path.splitext(path)[0]}"
         _symbols.append(
             {"SYMBOL": {"TYPE": "PIXMAP", "IMAGE": _quote(path), "NAME": _quote(name)}}
         )
@@ -241,7 +234,7 @@ def _createSymbol(sl):
         if shape.startswith("file://"):
             svgFilename = shape.split("//")[-1]
             svgName = os.path.splitext(svgFilename)[0]
-            name = "svgicon_" + svgName
+            name = f"svgicon_{svgName}"
             _symbols.append(
                 {
                     "SYMBOL": {
@@ -255,7 +248,7 @@ def _createSymbol(sl):
             token = shape.split("//")[-1]
             font, code = token.split("#")
             character = chr(int(code, 16))
-            name = "txtmarker_%s_%s" % (font, character)
+            name = f"txtmarker_{font}_{character}"
             _symbols.append(
                 {
                     "SYMBOL": {
@@ -278,9 +271,7 @@ def _iconSymbolizer(sl):
     color = _symbolProperty(sl, "color")
     name = _createSymbol(sl)
 
-    style = {"SYMBOL": _quote(name), "ANGLE": rotation, "SIZE": size}
-
-    return style
+    return {"SYMBOL": _quote(name), "ANGLE": rotation, "SIZE": size}
 
 
 def _markSymbolizer(sl):
@@ -326,4 +317,4 @@ def _rasterSymbolizer(sl):
 
 
 def _quote(t):
-    return '"%s"' % t
+    return f'"{t}"'

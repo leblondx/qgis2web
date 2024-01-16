@@ -29,7 +29,7 @@ def processRulesByZ(rules):
             r = result[z]
             rule_copy = rule.copy()
             rule_copy["symbolizers"] = [symbolizer]
-            rule_copy["name"] += ", Z=" + str(z)
+            rule_copy["name"] += f", Z={str(z)}"
             r.append(rule_copy)
     return result
 
@@ -56,8 +56,7 @@ def convert(geostyler):
     userStyleTitle = SubElement(userStyle, "Title")
     userStyleTitle.text = geostyler["name"]
 
-    z_values = list(rulesByZ.keys())
-    z_values.sort()
+    z_values = sorted(rulesByZ.keys())
     for z_value in z_values:
         zrules = rulesByZ[z_value]
         featureTypeStyle = SubElement(userStyle, "FeatureTypeStyle")
@@ -70,8 +69,7 @@ def convert(geostyler):
 
     sldstring = ElementTree.tostring(root, encoding="utf8", method="xml").decode()
     dom = minidom.parseString(sldstring)
-    result = dom.toprettyxml(indent="  "), _warnings
-    return result
+    return dom.toprettyxml(indent="  "), _warnings
 
 
 def processRule(rule):
@@ -118,19 +116,19 @@ def _createSymbolizers(symbolizers):
 
 def _createSymbolizer(sl):
     symbolizerType = sl["kind"]
-    if symbolizerType == "Icon":
-        symbolizer = _iconSymbolizer(sl)
-    if symbolizerType == "Line":
-        symbolizer = _lineSymbolizer(sl)
     if symbolizerType == "Fill":
         symbolizer = _fillSymbolizer(sl)
-    if symbolizerType == "Mark":
+    elif symbolizerType == "Icon":
+        symbolizer = _iconSymbolizer(sl)
+    elif symbolizerType == "Line":
+        symbolizer = _lineSymbolizer(sl)
+    elif symbolizerType == "Mark":
         symbolizer = _markSymbolizer(sl)
-    if symbolizerType == "Text":
-        symbolizer = _textSymbolizer(sl)
-    if symbolizerType == "Raster":
+    elif symbolizerType == "Raster":
         symbolizer = _rasterSymbolizer(sl)
 
+    elif symbolizerType == "Text":
+        symbolizer = _textSymbolizer(sl)
     if not isinstance(symbolizer, list):
         symbolizer = [symbolizer]
     for s in symbolizer:
@@ -142,10 +140,7 @@ def _createSymbolizer(sl):
 
 
 def _symbolProperty(sl, name, default=None):
-    if name in sl:
-        return _processProperty(sl[name])
-    else:
-        return default
+    return _processProperty(sl[name]) if name in sl else default
 
 
 def _processProperty(value):
@@ -266,8 +261,7 @@ def _textSymbolizer(sl):
     fillElem = _addSubElement(root, "Fill")
     _addCssParameter(fillElem, "fill", color)
 
-    followLine = sl.get("followLine", False)
-    if followLine:
+    if followLine := sl.get("followLine", False):
         _addVendorOption(root, "followLine", True)
         _addVendorOption(root, "group", "yes")
     elif "background" not in sl:
@@ -277,7 +271,7 @@ def _textSymbolizer(sl):
         background = sl["background"]
         avg_size = max(background["sizeX"], background["sizeY"])
         shapeName = "rectangle"
-        if background["shapeType"] == "circle" or background["shapeType"] == "elipse":
+        if background["shapeType"] in ["circle", "elipse"]:
             shapeName = "circle"
         graphic = _addSubElement(root, "Graphic")
         mark = _addSubElement(graphic, "Mark")
@@ -327,9 +321,7 @@ def _lineSymbolizer(sl, graphicStrokeLayer=0):
         try:
             fsize = float(size)
             finterval = float(interval)
-            _addCssParameter(
-                stroke, "stroke-dasharray", "%s %s" % (str(fsize), str(finterval))
-            )
+            _addCssParameter(stroke, "stroke-dasharray", f"{fsize} {finterval}")
         except:
             _addCssParameter(stroke, "stroke-dasharray", "10 10")
         _addCssParameter(stroke, "stroke-dashoffset", dashOffset)
@@ -450,7 +442,7 @@ def _svgGraphic(sl):
     outlineColor = _symbolProperty(sl, "strokeColor")
     outlineWidth = _symbolProperty(sl, "strokeWidth")
     mark = Element("Mark")
-    _addSubElement(mark, "WellKnownName", "file://%s" % path)
+    _addSubElement(mark, "WellKnownName", f"file://{path}")
     fill = _addSubElement(mark, "Fill")
     _addCssParameter(fill, "fill", color)
     stroke = _addSubElement(mark, "Stroke")
@@ -465,21 +457,20 @@ def _rasterImageGraphic(sl):
     attrib = {"xlink:type": "simple", "xlink:href": path}
     SubElement(externalGraphic, "OnlineResource", attrib=attrib)
     _addSubElement(
-        externalGraphic, "Format", "image/%s" % os.path.splitext(path)[1][1:]
+        externalGraphic, "Format", f"image/{os.path.splitext(path)[1][1:]}"
     )
     return externalGraphic
 
 
 def _baseFillSymbolizer(sl):
-    root = Element("PolygonSymbolizer")
-    return root
+    return Element("PolygonSymbolizer")
 
 
 def _graphicFromSymbolizer(sl):
     symbolizers = _createSymbolizer(sl)
     graphics = []
     for s in symbolizers:
-        graphics.extend([graph for graph in s.iter("Graphic")])
+        graphics.extend(list(s.iter("Graphic")))
     return graphics
 
 
@@ -523,9 +514,6 @@ def _fillSymbolizer(sl, graphicFillLayer=0):
             _addCssParameter(
                 stroke, "stroke-dasharray", " ".join(str(v) for v in outlineDasharray)
             )
-
-    if offset:
-        pass  # TODO: Not sure how to add this in SLD
 
     return symbolizers
 
@@ -574,7 +562,7 @@ def convertExpression(exp, inFunction=False):
 
 def handleOperator(exp):
     name = exp[0]
-    elem = Element("ogc:" + name)
+    elem = Element(f"ogc:{name}")
     if name == "PropertyIsLike":
         elem.attrib["wildCard"] = "%"
     if name == "PropertyName":

@@ -29,7 +29,7 @@ def gen_func_stubs():
         name = func.name()
         if name.startswith("$"):
             continue
-        newfunc = temp % ("fnc_" + name)
+        newfunc = temp % f"fnc_{name}"
         functions.append(newfunc)
     return "\n".join(functions)
 
@@ -53,7 +53,7 @@ def exp2func(expstr, name=None, mapLib=None):
         import random
         import string
         name = 'exp_' + ''.join(random.choice(string.ascii_lowercase) for _ in range(4))
-    name = "exp_" + name + "_eval_expression"
+    name = f"exp_{name}_eval_expression"
     temp = """
 function %s(context) {
     // %s
@@ -97,9 +97,8 @@ def handle_condition(node, mapLib):
     global condtioncounts
     subexps = re.findall(r"WHEN(\s+.*?\s+)THEN(\s+.*?\s+)", node.dump())
     QgsMessageLog.logMessage(subexps, "qgis2web", level=Qgis.Info)
-    count = 1
     js = ""
-    for sub in subexps:
+    for count, sub in enumerate(subexps, start=1):
         when = sub[0].strip()
         then = sub[1].strip()
         QgsMessageLog.logMessage(then, "qgis2web", level=Qgis.Info)
@@ -114,8 +113,6 @@ def handle_condition(node, mapLib):
         }
         """ % (style, whenjs, thenjs)
         js = js.strip()
-        count += 1
-
     elsejs = "null"
     if "ELSE" in node.dump():
         elseexps = re.findall(r"ELSE(\s+.*?\s+)END", node.dump())
@@ -140,26 +137,20 @@ def handle_binary(node, mapLib):
     right = node.opRight()
     retLeft = walkExpression(left, mapLib)
     retRight = walkExpression(right, mapLib)
-    if retOp == "LIKE":
-        return "(%s.indexOf(%s) > -1)" % (retLeft[:-1],
-                                          re.sub("[_%]", "", retRight))
-    elif retOp == "NOT LIKE":
-        return "(%s.indexOf(%s) == -1)" % (retLeft[:-1],
-                                           re.sub("[_%]", "", retRight))
+    if retOp == "//":
+        return f"(Math.floor({retLeft} {retOp} {retRight}))"
     elif retOp == "ILIKE":
-        return "(%s.toLowerCase().indexOf(%s.toLowerCase()) > -1)" % (
-            retLeft[:-1],
-            re.sub("[_%]", "", retRight))
+        return f'({retLeft[:-1]}.toLowerCase().indexOf({re.sub("[_%]", "", retRight)}.toLowerCase()) > -1)'
+    elif retOp == "LIKE":
+        return f'({retLeft[:-1]}.indexOf({re.sub("[_%]", "", retRight)}) > -1)'
     elif retOp == "NOT ILIKE":
-        return "(%s.toLowerCase().indexOf(%s.toLowerCase()) == -1)" % (
-            retLeft[:-1],
-            re.sub("[_%]", "", retRight))
+        return f'({retLeft[:-1]}.toLowerCase().indexOf({re.sub("[_%]", "", retRight)}.toLowerCase()) == -1)'
+    elif retOp == "NOT LIKE":
+        return f'({retLeft[:-1]}.indexOf({re.sub("[_%]", "", retRight)}) == -1)'
     elif retOp == "~":
-        return "/%s/.test(%s)" % (retRight[1:-2], retLeft[:-1])
-    elif retOp == "//":
-        return "(Math.floor(%s %s %s))" % (retLeft, retOp, retRight)
+        return f"/{retRight[1:-2]}/.test({retLeft[:-1]})"
     else:
-        return "(%s %s %s)" % (retLeft, retOp, retRight)
+        return f"({retLeft} {retOp} {retRight})"
 
 
 def handle_unary(node, mapLib):
@@ -167,7 +158,7 @@ def handle_unary(node, mapLib):
     operand = node.operand()
     retOp = unary_ops[op]
     retOperand = walkExpression(operand, mapLib)
-    return "%s %s " % (retOp, retOperand)
+    return f"{retOp} {retOperand} "
 
 
 def handle_in(node, mapLib):
@@ -175,11 +166,8 @@ def handle_in(node, mapLib):
     retOperand = walkExpression(operand, mapLib)
     list = node.list().dump()
     retList = json.dumps(list)
-    if node.isNotIn():
-        notIn = "!"
-    else:
-        notIn = ""
-    return "%s%s.indexOf(%s) > -1 " % (notIn, retList, retOperand)
+    notIn = "!" if node.isNotIn() else ""
+    return f"{notIn}{retList}.indexOf({retOperand}) > -1 "
 
 
 def handle_literal(node):
@@ -190,7 +178,7 @@ def handle_literal(node):
     elif isinstance(val, str):
         quote = "'"
         val = val.replace("\n", "\\n")
-    return "%s%s%s" % (quote, str(val), quote)
+    return f"{quote}{str(val)}{quote}"
 
 
 def handle_function(node, mapLib):
@@ -198,20 +186,18 @@ def handle_function(node, mapLib):
     func = QgsExpression.Functions()[fnIndex]
     args = node.args().list()
     retFunc = (func.name())
-    retArgs = []
-    for arg in args:
-        retArgs.append(walkExpression(arg, mapLib))
+    retArgs = [walkExpression(arg, mapLib) for arg in args]
     retArgs = ",".join(retArgs)
-    return "fnc_%s([%s], context)" % (retFunc, retArgs)
+    return f"fnc_{retFunc}([{retArgs}], context)"
 
 
 def handle_columnRef(node, mapLib):
     if mapLib is None:
-        return "feature['%s'] " % node.name()
+        return f"feature['{node.name()}'] "
     if mapLib == "Leaflet":
-        return "feature.properties['%s'] " % node.name()
+        return f"feature.properties['{node.name()}'] "
     else:
-        return "feature.get('%s') " % node.name()
+        return f"feature.get('{node.name()}') "
 
 
 def render_examples():

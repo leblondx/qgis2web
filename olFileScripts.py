@@ -16,10 +16,10 @@ def writeFiles(folder, restrictToExtent, feedback):
     fontStore = os.path.join(folder, 'webfonts')
     os.makedirs(fontStore)
     fontStore += os.sep
-    shutil.copyfile(fontDir + 'fa-solid-900.woff2',
-                    fontStore + 'fa-solid-900.woff2')
-    shutil.copyfile(fontDir + 'fa-solid-900.ttf',
-                    fontStore + 'fa-solid-900.ttf')
+    shutil.copyfile(
+        f'{fontDir}fa-solid-900.woff2', f'{fontStore}fa-solid-900.woff2'
+    )
+    shutil.copyfile(f'{fontDir}fa-solid-900.ttf', f'{fontStore}fa-solid-900.ttf')
     # copy the rest
     src = os.path.join(os.path.dirname(__file__), "openlayers")
     if not os.path.exists(dst):
@@ -29,13 +29,17 @@ def writeFiles(folder, restrictToExtent, feedback):
 
 def writeHTMLstart(settings, controlCount, osmb, feedback):
     feedback.showFeedback("Writing HTML...")
-    jsAddress = """<script src="resources/polyfills.js"></script>
+    jsAddress = (
+        """<script src="resources/polyfills.js"></script>
         <script src="./resources/functions.js"></script>"""
-    cssAddress = """<link rel="stylesheet" href="./resources/ol.css">"""
-    jsAddress += """
+        + """
         <script src="./resources/ol.js"></script>"""
-    cssAddress += """
+    )
+    cssAddress = (
+        """<link rel="stylesheet" href="./resources/ol.css">"""
+        + """
         <link rel="stylesheet" href="resources/fontawesome-all.min.css">"""
+    )
     if osmb != "":
         jsAddress += """
         <script src="resources/OSMBuildings-OL3.js"></script>"""
@@ -46,7 +50,7 @@ def writeHTMLstart(settings, controlCount, osmb, feedback):
 def writeLayerSearch(cssAddress, jsAddress, controlCount, layerSearch,
                      searchLayer, feedback):
     feedback.showFeedback("Writing Layer Search...")
-    if layerSearch != "None" and layerSearch != "":
+    if layerSearch not in ["None", ""]:
         cssAddress += """
         <link rel="stylesheet" type="text/css" href="resources/horsey.min.css">
         <link rel="stylesheet" type="text/css" """
@@ -79,17 +83,16 @@ def writeLayerSearch(cssAddress, jsAddress, controlCount, layerSearch,
 
 
 def writeScriptIncludes(layers, json, matchCRS):
-    geojsonVars = ""
     wfsVars = ""
     styleVars = ""
+    geojsonVars = ""
     for count, (layer, encode2json) in enumerate(zip(layers, json)):
         vts = layer.customProperty("VectorTilesReader/vector_tile_url")
-        sln = safeName(layer.name()) + "_" + str(count)
+        sln = f"{safeName(layer.name())}_{str(count)}"
         if layer.type() == layer.VectorLayer:
             if layer.providerType() != "WFS" or encode2json:
                 if vts is None:
-                    geojsonVars += ('<script src="layers/%s"></script>' %
-                                    (sln + ".js"))
+                    geojsonVars += f'<script src="layers/{sln}.js"></script>'
             else:
                 layerSource = layer.source()
                 if ("retrictToRequestBBOX" in layerSource or
@@ -111,10 +114,9 @@ def writeScriptIncludes(layers, json, matchCRS):
                                          layerSource)
                 layerSource += "&outputFormat=text%2Fjavascript&"
                 layerSource += "format_options=callback%3A"
-                layerSource += "get" + sln + "Json"
-                wfsVars += ('<script src="%s"></script>' % layerSource)
+                layerSource += f"get{sln}Json"
+                wfsVars += f'<script src="{layerSource}"></script>'
             if vts is not None:
                 sln = safeName(vts)
-            styleVars += ('<script src="styles/%s_style.js">'
-                          '</script>' % sln)
+            styleVars += f'<script src="styles/{sln}_style.js"></script>'
     return (geojsonVars, wfsVars, styleVars)

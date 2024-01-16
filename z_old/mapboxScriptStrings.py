@@ -17,36 +17,38 @@ from qgis2web.utils import scaleToZoom, safeName
 
 
 def jsonScript(layer):
-    json = """
-        <script src="data/{layer}.js\"></script>""".format(layer=layer)
-    return json
+    return """
+        <script src="data/{layer}.js\"></script>""".format(
+        layer=layer
+    )
 
 
 def scaleDependentLayerScript(layer, layerName, cluster):
     max = layer.minimumScale()
     min = layer.maximumScale()
-    if cluster:
-        layerType = "cluster"
-    else:
-        layerType = "layer"
-    scaleDependentLayer = """
+    layerType = "cluster" if cluster else "layer"
+    return """
             if (map.getZoom() <= {min} && map.getZoom() >= {max}) {{
                 map.addLayer({layerType}_{layerName});
             }} else if (map.getZoom() > {min} || map.getZoom() < {max}) {{
                 map.removeLayer({layerType}_{layerName});
-            }}""".format(min=scaleToZoom(min), max=scaleToZoom(max),
-                         layerName=layerName, layerType=layerType)
-    return scaleDependentLayer
+            }}""".format(
+        min=scaleToZoom(min),
+        max=scaleToZoom(max),
+        layerName=layerName,
+        layerType=layerType,
+    )
 
 
 def scaleDependentLabelScript(layer, layerName):
-    if layer.labeling() is not None:
-        labelling = layer.labeling().settings()
-        sv = labelling.scaleVisibility
-        if sv:
-            min = scaleToZoom(labelling.minimumScale)
-            max = scaleToZoom(labelling.maximumScale)
-            scaleDependentLabel = """
+    if layer.labeling() is None:
+        return ""
+    labelling = layer.labeling().settings()
+    sv = labelling.scaleVisibility
+    if sv:
+        min = scaleToZoom(labelling.minimumScale)
+        max = scaleToZoom(labelling.maximumScale)
+        return """
                 if (map.hasLayer(layer_%(layerName)s)) {
                     if (map.getZoom() <= %(min)d && map.getZoom() >= %(max)d) {
                         layer_%(layerName)s.eachLayer(function (layer) {
@@ -57,10 +59,11 @@ def scaleDependentLabelScript(layer, layerName):
                             layer.closeTooltip();
                         });
                     }
-                }""" % {"min": min, "max": max, "layerName": layerName}
-            return scaleDependentLabel
-        else:
-            return ""
+                }""" % {
+            "min": min,
+            "max": max,
+            "layerName": layerName,
+        }
     else:
         return ""
 
@@ -122,10 +125,13 @@ def mapScript(extent, matchCRS, crsAuthId, measure, maxZoom, minZoom, bounds,
             worldCopyJump: false, """
     map += """
             zoomControl:true, maxZoom:""" + unicode(maxZoom)
-    map += """, minZoom:""" + unicode(minZoom) + """
+    map += (
+        f""", minZoom:{unicode(minZoom)}"""
+        + """
         })"""
+    )
     if extent == "Canvas extent":
-        map += """.fitBounds(""" + bounds + """);"""
+        map += f""".fitBounds({bounds});"""
     map += """
         var hash = new L.Hash(map);"""
     map += """
@@ -164,9 +170,8 @@ def mapScript(extent, matchCRS, crsAuthId, measure, maxZoom, minZoom, bounds,
 
 
 def featureGroupsScript():
-    featureGroups = """
+    return """
         var bounds_group = new L.featureGroup([]);"""
-    return featureGroups
 
 
 def extentScript(extent, restrictToExtent):
@@ -186,15 +191,17 @@ def extentScript(extent, restrictToExtent):
 
 
 def popFuncsScript(table):
-    popFuncs = """
+    return (
+        """
             var popupContent = %s;
-            layer.bindPopup(popupContent, {maxHeight: 400});""" % table
-    return popFuncs
+            layer.bindPopup(popupContent, {maxHeight: 400});"""
+        % table
+    )
 
 
 def popupScript(safeLayerName, popFuncs, highlight, popupsOnHover):
-    sln = "lyr_%s_0" % safeLayerName
-    popup = """
+    sln = f"lyr_{safeLayerName}_0"
+    return """
 map.on('click', '%s', function (e) {
     var description = %s
 
@@ -214,8 +221,12 @@ map.on('mouseleave', '%s', function () {
     map.getCanvas().style.cursor = '';
 });
 
-""" % (sln, popFuncs, sln, sln)
-    return popup
+""" % (
+        sln,
+        popFuncs,
+        sln,
+        sln,
+    )
 
 
 def iconLegend(symbol, catr, outputProjectFileName, layerName, catLegend, cnt):
@@ -227,10 +238,13 @@ def iconLegend(symbol, catr, outputProjectFileName, layerName, catLegend, cnt):
                                                          QSize(iconSize,
                                                                iconSize))
     safeLabel = re.sub(r'[\W_]+', '', catr.label()) + unicode(cnt)
-    legendIcon.save(os.path.join(outputProjectFileName, "legend",
-                                 layerName + "_" + safeLabel + ".png"))
+    legendIcon.save(
+        os.path.join(
+            outputProjectFileName, "legend", f"{layerName}_{safeLabel}.png"
+        )
+    )
     catLegend += """<tr><td style="text-align: center;"><img src="legend/"""
-    catLegend += layerName + "_" + safeLabel + """.png" /></td><td>"""
+    catLegend += f'{layerName}_{safeLabel}.png" /></td><td>'
     catLegend += catr.label().replace("'", "\\'") + "</td></tr>"
     return catLegend
 
@@ -259,9 +273,10 @@ def pointToLayerFunction(safeLayerName, sl):
 
 
 def wfsScript(scriptTag):
-    wfs = """
-        <script src='{scriptTag}'></script>""".format(scriptTag=scriptTag)
-    return wfs
+    return """
+        <script src='{scriptTag}'></script>""".format(
+        scriptTag=scriptTag
+    )
 
 
 def clusterScript(safeLayerName):
@@ -280,12 +295,16 @@ def wmsScript(layer, safeLayerName, count):
     d = parse_qs(layer.source())
     opacity = layer.renderer().opacity()
     if 'type' in d and d['type'][0] == "xyz":
-        wms = """
+        return """
         {
             "id": "lyr_%s_%d",
             "type": "raster",
             "source": "%s"
-        }""" % (safeLayerName, count, safeLayerName)
+        }""" % (
+            safeLayerName,
+            count,
+            safeLayerName,
+        )
     elif 'tileMatrixSet' in d:
         useWMTS = True
         wmts_url = d['url'][0]
@@ -294,7 +313,7 @@ def wmsScript(layer, safeLayerName, count):
         wmts_crs = d['crs'][0]
         wmts_style = d['styles'][0]
         wmts_tileMatrixSet = d['tileMatrixSet'][0]
-        wms = """
+        return """
         var overlay_{safeLayerName} = L.tileLayer.wmts('{wmts_url}', {{
             layer: '{wmts_layer}',
             tilematrixSet: '{wmts_tileMatrixSet}',
@@ -304,10 +323,15 @@ def wmsScript(layer, safeLayerName, count):
             transparent: true,
             continuousWorld : true,
             opacity: {opacity}
-        }});""".format(safeLayerName=safeLayerName, wmts_url=wmts_url,
-                       wmts_layer=wmts_layer, wmts_format=wmts_format,
-                       wmts_tileMatrixSet=wmts_tileMatrixSet,
-                       wmts_style=wmts_style, opacity=opacity)
+        }});""".format(
+            safeLayerName=safeLayerName,
+            wmts_url=wmts_url,
+            wmts_layer=wmts_layer,
+            wmts_format=wmts_format,
+            wmts_tileMatrixSet=wmts_tileMatrixSet,
+            wmts_style=wmts_style,
+            opacity=opacity,
+        )
     else:
         useWMS = True
         wms_url = d['url'][0]
@@ -317,7 +341,7 @@ def wmsScript(layer, safeLayerName, count):
         if not identify:
             getFeatureInfo = """,
             identify: false,"""
-        wms = """
+        return """
         var overlay_%s = L.WMS.layer("%s", "%s", {
             format: '%s',
             uppercase: true,
@@ -326,21 +350,29 @@ def wmsScript(layer, safeLayerName, count):
             tiled: true,
             info_format: 'text/html',
             opacity: %d%s
-        });""" % (safeLayerName, wms_url, wms_layer, wms_format, opacity,
-                  getFeatureInfo)
-    return wms
+        });""" % (
+            safeLayerName,
+            wms_url,
+            wms_layer,
+            wms_format,
+            opacity,
+            getFeatureInfo,
+        )
 
 
 def rasterScript(layer, safeLayerName, count):
-    raster = """
+    return """
         {
             "id": "lyr_%s_%d",
             "type": "raster",
             "source": "%s",
             "minzoom": 0,
             "maxzoom": 22
-        }""" % (safeLayerName, count, safeLayerName)
-    return raster
+        }""" % (
+        safeLayerName,
+        count,
+        safeLayerName,
+    )
 
 
 def titleSubScript(webmap_head):
@@ -366,7 +398,7 @@ def addLayersList(basemapList, matchCRS, layer_list, cluster, legends,
         sln = "'lyr_%s_%d_0', '%s'" % (safeName(layer.name()), ct,
                                        layer.name())
         layerName_list.insert(0, sln)
-    layersList = """
+    return """
     var toggleableLayerIds = [%s];
 
     for (var i = 0; i < toggleableLayerIds.length; i=i+2) {
@@ -397,20 +429,22 @@ def addLayersList(basemapList, matchCRS, layer_list, cluster, legends,
 
         var layers = document.getElementById('menu');
         layers.appendChild(link);
-    }""" % (",".join(layerName_list))
-
-    return layersList
+    }""" % (
+        ",".join(layerName_list)
+    )
 
 
 def scaleBar():
-    scaleBar = "L.control.scale({position: 'bottomleft', "
-    scaleBar += "maxWidth: 100, metric: true, imperial: false, "
+    scaleBar = (
+        "L.control.scale({position: 'bottomleft', "
+        + "maxWidth: 100, metric: true, imperial: false, "
+    )
     scaleBar += "updateWhenIdle: false}).addTo(map);"
     return scaleBar
 
 
 def addressSearchScript():
-    addressSearch = """
+    return """
         var geocodeNominatimRequest = function(query, mapBounds, options) {
         var params = { format: "json", q: query, limit: options.limit };
         var urlParams = new URLSearchParams(Object.entries(params));
@@ -437,7 +471,6 @@ def addressSearchScript():
 
         map.addControl(new MapboxGenericGeocoder({}, geocodeNominatimRequest));
 """
-    return addressSearch
 
 
 def getVTStyles(vtStyles):
@@ -451,7 +484,7 @@ def getVTStyles(vtStyles):
             for style in styles:
                 if style == "":
                     style = "{}"
-                vtStyleString += "%s," % style
+                vtStyleString += f"{style},"
             vtStyleString += "],"
             vtStyleString = vtStyleString.replace(",]", "]")
         vtStyleString += "}"
@@ -460,18 +493,19 @@ def getVTStyles(vtStyles):
 
 
 def getVTLabels(vtLabels):
-    labels = []
-    for k, v in vtLabels.items():
-        labels.append("""
+    labels = [
+        """
     function label_%s(feature, featureLayer, vtLayer, tileCoords) {
         var context = {
             feature: feature,
             variables: {}
         };
         %s
-    }""" % (safeName(k), v))
-    labelString = "".join(labels)
-    return labelString
+    }"""
+        % (safeName(k), v)
+        for k, v in vtLabels.items()
+    ]
+    return "".join(labels)
 
 
 def endHTMLscript(wfsLayers, layerSearch, labelCode, labels, searchLayer,
@@ -489,10 +523,12 @@ def endHTMLscript(wfsLayers, layerSearch, labelCode, labels, searchLayer,
         %s""" % labelCode
         endHTML += labels
     if len(mapUnitLayers) > 0:
-        lyrs = []
-        for layer in mapUnitLayers:
-            lyrs.append("""
-            layer_%s.setStyle(style_%s_0);""" % (layer, layer))
+        lyrs = [
+            """
+            layer_%s.setStyle(style_%s_0);"""
+            % (layer, layer)
+            for layer in mapUnitLayers
+        ]
         lyrScripts = "".join(lyrs)
         endHTML += """
         newM2px();

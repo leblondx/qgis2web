@@ -30,11 +30,11 @@ def writeFoldersAndFiles(pluginDir, feedback, outputProjectFileName,
     fontStore += os.sep
     markerStore = os.path.join(outputProjectFileName, 'markers')
     os.makedirs(markerStore)
-    shutil.copyfile(jsDir + 'qgis2web_expressions.js',
-                    jsStore + 'qgis2web_expressions.js')
-    shutil.copyfile(jsDir + 'Autolinker.min.js',
-                    jsStore + 'Autolinker.min.js')
-    shutil.copytree(cssDir + 'images', cssStore + 'images')
+    shutil.copyfile(
+        f'{jsDir}qgis2web_expressions.js', f'{jsStore}qgis2web_expressions.js'
+    )
+    shutil.copyfile(f'{jsDir}Autolinker.min.js', f'{jsStore}Autolinker.min.js')
+    shutil.copytree(f'{cssDir}images', f'{cssStore}images')
     feedback.completeStep()
     return dataStore, cssStore
 
@@ -42,54 +42,48 @@ def writeFoldersAndFiles(pluginDir, feedback, outputProjectFileName,
 def writeHTMLstart(outputIndex, webpage_name, cluster_set, address, measure,
                    layerSearch, canvas, locate, qgis2webJS, template,
                    feedback):
-    useCluster = False
-    for cluster in cluster_set:
-        if cluster:
-            useCluster = True
+    useCluster = any(cluster_set)
     feedback.showFeedback("Writing HTML...")
-    if webpage_name == "":
-        pass
-    else:
+    if webpage_name != "":
         webpage_name = unicode(webpage_name)
     cssAddress = '<link rel="stylesheet" href="mapbox/mapbox-gl.css">'
-    jsAddress = '<script src="./mapbox/mapbox-gl.js">'
-    jsAddress += '</script>'
+    jsAddress = '<script src="./mapbox/mapbox-gl.js">' + '</script>'
     extracss = '<link rel="stylesheet" href="css/qgis2web.css">'
     if useCluster:
         clusterCSS = """<link rel="stylesheet" href="css/MarkerCluster.css">
         <link rel="stylesheet" href="css/MarkerCluster.Default.css">"""
-        clusterJS = '<script src="js/leaflet.markercluster.js">'
-        clusterJS += "</script>"
+        clusterJS = '<script src="js/leaflet.markercluster.js">' + "</script>"
     else:
         clusterCSS = ""
         clusterJS = ""
     if layerSearch != "None":
-        layerSearchCSS = '<link rel="stylesheet" '
-        layerSearchCSS += 'href="css/leaflet-search.css">'
+        layerSearchCSS = '<link rel="stylesheet" ' + 'href="css/leaflet-search.css">'
         layerSearchJS = '<script src="js/leaflet-search.js"></script>'
     else:
         layerSearchCSS = ""
         layerSearchJS = ""
     if address:
-        addressCSS = """
+        addressCSS = (
+            """
         <link rel="stylesheet" href="mapbox/"""
-        addressCSS += """mapbox-gl-generic-geocoder.css">"""
+            + """mapbox-gl-generic-geocoder.css">"""
+        )
         addressJS = """
         <script src="mapbox/mapbox-gl-generic-geocoder.min.js"></script>"""
     else:
         addressCSS = ""
         addressJS = ""
-    if measure == "Metric":
-        measureCSS = """
-        <link rel="stylesheet" href="./mapbox/measure.css">"""
-        measureJS = """
-        <script src="./mapbox/measureMetric.js"></script>
-        <script src="./mapbox/turf.min.js"></script>"""
-    elif measure == "Imperial":
+    if measure == "Imperial":
         measureCSS = """
         <link rel="stylesheet" href="./mapbox/measure.css">"""
         measureJS = """
         <script src="./mapbox/measureImperial.js"></script>
+        <script src="./mapbox/turf.min.js"></script>"""
+    elif measure == "Metric":
+        measureCSS = """
+        <link rel="stylesheet" href="./mapbox/measure.css">"""
+        measureJS = """
+        <script src="./mapbox/measureMetric.js"></script>
         <script src="./mapbox/turf.min.js"></script>"""
     else:
         measureCSS = ""
@@ -113,44 +107,46 @@ def writeHTMLstart(outputIndex, webpage_name, cluster_set, address, measure,
         <script src="js/qgis2web_expressions.js"></script>"""
 
     canvasSize = canvas.size()
-    values = {"@PAGETITLE@": webpage_name,
-              "@CSSADDRESS@": cssAddress,
-              "@EXTRACSS@": extracss,
-              "@JSADDRESS@": jsAddress,
-              "@LEAFLET_CLUSTERCSS@": clusterCSS,
-              "@LEAFLET_CLUSTERJS@": clusterJS,
-              "@LEAFLET_LAYERSEARCHCSS@": layerSearchCSS,
-              "@LEAFLET_LAYERSEARCHJS@": layerSearchJS,
-              "@LEAFLET_ADDRESSCSS@": addressCSS,
-              "@LEAFLET_MEASURECSS@": measureCSS,
-              "@LEAFLET_EXTRAJS@": extraJS,
-              "@LEAFLET_ADDRESSJS@": addressJS,
-              "@LEAFLET_MEASUREJS@": "",
-              "@LEAFLET_CRSJS@": "",
-              "@LEAFLET_LAYERFILTERCSS@": "",
-              "@LEAFLET_LAYERFILTERJS@": "",
-              "@QGIS2WEBJS@": qgis2webJS,
-              "@MAP_WIDTH@": unicode(canvasSize.width()) + "px",
-              "@MAP_HEIGHT@": unicode(canvasSize.height()) + "px",
-              "@EXP_JS@": exp_js,
-              "@OL3_BACKGROUNDCOLOR@": "",
-              "@OL3_STYLEVARS@": "",
-              "@OL3_POPUP@": """<nav id="menu"></nav>
+    values = {
+        "@PAGETITLE@": webpage_name,
+        "@CSSADDRESS@": cssAddress,
+        "@EXTRACSS@": extracss,
+        "@JSADDRESS@": jsAddress,
+        "@LEAFLET_CLUSTERCSS@": clusterCSS,
+        "@LEAFLET_CLUSTERJS@": clusterJS,
+        "@LEAFLET_LAYERSEARCHCSS@": layerSearchCSS,
+        "@LEAFLET_LAYERSEARCHJS@": layerSearchJS,
+        "@LEAFLET_ADDRESSCSS@": addressCSS,
+        "@LEAFLET_MEASURECSS@": measureCSS,
+        "@LEAFLET_EXTRAJS@": extraJS,
+        "@LEAFLET_ADDRESSJS@": addressJS,
+        "@LEAFLET_MEASUREJS@": "",
+        "@LEAFLET_CRSJS@": "",
+        "@LEAFLET_LAYERFILTERCSS@": "",
+        "@LEAFLET_LAYERFILTERJS@": "",
+        "@QGIS2WEBJS@": qgis2webJS,
+        "@MAP_WIDTH@": f"{unicode(canvasSize.width())}px",
+        "@MAP_HEIGHT@": f"{unicode(canvasSize.height())}px",
+        "@EXP_JS@": exp_js,
+        "@OL3_BACKGROUNDCOLOR@": "",
+        "@OL3_STYLEVARS@": "",
+        "@OL3_POPUP@": """<nav id="menu"></nav>
               <div id="distance" class="distance-container"></div>""",
-              "@OL3_GEOJSONVARS@": "",
-              "@OL3_WFSVARS@": "",
-              "@OL3_PROJ4@": "",
-              "@OL3_PROJDEF@": "",
-              "@OL3_GEOCODINGLINKS@": "",
-              "@OL3_GEOCODINGJS@": "",
-              "@OL3_LAYERSWITCHER@": "",
-              "@OL3_LAYERS@": "",
-              "@OL3_MEASURESTYLE@": "",
-              "@MBGLJS_MEASURE@": measureJS,
-              "@MBGLJS_LOCATE@": locateJS}
+        "@OL3_GEOJSONVARS@": "",
+        "@OL3_WFSVARS@": "",
+        "@OL3_PROJ4@": "",
+        "@OL3_PROJDEF@": "",
+        "@OL3_GEOCODINGLINKS@": "",
+        "@OL3_GEOCODINGJS@": "",
+        "@OL3_LAYERSWITCHER@": "",
+        "@OL3_LAYERS@": "",
+        "@OL3_MEASURESTYLE@": "",
+        "@MBGLJS_MEASURE@": measureJS,
+        "@MBGLJS_LOCATE@": locateJS,
+    }
 
     with codecs.open(outputIndex, 'w', encoding='utf-8') as f:
-        base = replaceInTemplate(template + ".html", values)
+        base = replaceInTemplate(f"{template}.html", values)
         base = re.sub(r'\n[\s_]+\n', '\n', base)
         f.write(unicode(base))
         f.close()
@@ -160,7 +156,7 @@ def writeHTMLstart(outputIndex, webpage_name, cluster_set, address, measure,
 def writeCSS(cssStore, backgroundColor, feedback, widgetAccent,
              widgetBackground):
     feedback.showFeedback("Writing CSS...")
-    with open(cssStore + 'qgis2web.css', 'w') as f_css:
+    with open(f'{cssStore}qgis2web.css', 'w') as f_css:
         text = """
         #map {
             background-color: """ + backgroundColor + """

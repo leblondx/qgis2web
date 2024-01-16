@@ -27,9 +27,7 @@ def convert(geostyler):
 
 
 def _toZoomLevel(scale):
-    if scale < 1:  # scale=0 is valid in QGIS
-        return 30
-    return int(math.log(1000000000 / scale, 2))
+    return 30 if scale < 1 else int(math.log(1000000000 / scale, 2))
 
 
 def processLayer(layer):
@@ -59,13 +57,13 @@ def processRule(rule, source):
             if filt is not None:
                 lay["filter"] = filt
             lay["source"] = source
-            lay["id"] = name + ":" + str(i)
+            lay["id"] = f"{name}:{str(i)}"
             if minzoom is not None:
                 lay["minzoom"] = minzoom
             if maxzoom is not None:
                 lay["maxzoom"] = maxzoom
         except Exception as e:
-            _warnings.append("Empty style rule: '%s'" % (name + ":" + str(i)))
+            _warnings.append(f"Empty style rule: '{name}:{str(i)}'")
     return layers
 
 
@@ -111,37 +109,35 @@ func = {
 def convertExpression(exp):
     if exp is None:
         return None
-    if isinstance(exp, list):
-        funcName = func.get(exp[0], None)
-        if funcName is None:
-            _warnings.append(
-                "Unsupported expression function for mapbox conversion: '%s'" % exp[0]
-            )
-            return None
-        else:
-            convertedExp = [funcName]
-            for arg in exp[1:]:
-                convertedExp.append(convertExpression(arg))
-            return convertedExp
-    else:
+    if not isinstance(exp, list):
         return exp
+    funcName = func.get(exp[0], None)
+    if funcName is None:
+        _warnings.append(
+            f"Unsupported expression function for mapbox conversion: '{exp[0]}'"
+        )
+        return None
+    else:
+        convertedExp = [funcName]
+        convertedExp.extend(convertExpression(arg) for arg in exp[1:])
+        return convertedExp
 
 
 def processSymbolizer(sl):
     symbolizerType = sl["kind"]
-    if symbolizerType == "Icon":
-        symbolizer = _iconSymbolizer(sl)
-    if symbolizerType == "Line":
-        symbolizer = _lineSymbolizer(sl)
     if symbolizerType == "Fill":
         symbolizer = _fillSymbolizer(sl)
-    if symbolizerType == "Mark":
+    elif symbolizerType == "Icon":
+        symbolizer = _iconSymbolizer(sl)
+    elif symbolizerType == "Line":
+        symbolizer = _lineSymbolizer(sl)
+    elif symbolizerType == "Mark":
         symbolizer = _markSymbolizer(sl)
-    if symbolizerType == "Text":
-        symbolizer = _textSymbolizer(sl)
-    if symbolizerType == "Raster":
+    elif symbolizerType == "Raster":
         symbolizer = _rasterSymbolizer(sl)
 
+    elif symbolizerType == "Text":
+        symbolizer = _textSymbolizer(sl)
     geom = _geometryFromSymbolizer(sl)
     if geom is not None:
         _warnings.append("Derived geometries are not supported in mapbox gl")
@@ -150,10 +146,7 @@ def processSymbolizer(sl):
 
 
 def _symbolProperty(sl, name):
-    if name in sl:
-        return convertExpression(sl[name])
-    else:
-        return None
+    return convertExpression(sl[name]) if name in sl else None
 
 
 def _textSymbolizer(sl):
@@ -226,26 +219,23 @@ def _lineSymbolizer(sl, graphicStrokeLayer=0):
 
 
 def _geometryFromSymbolizer(sl):
-    geomExpr = convertExpression(sl.get("Geometry", None))
-    return geomExpr
+    return convertExpression(sl.get("Geometry", None))
 
 
 def _iconSymbolizer(sl):
     path = os.path.splitext(os.path.basename(sl["image"])[0])
     rotation = _symbolProperty(sl, "rotate")
 
-    paint = {}
-    paint["icon-image"] = path
-    paint["icon-rotate"] = rotation
+    paint = {"icon-image": path, "icon-rotate": rotation}
     return {"type": "symbol", "paint": paint}
 
 
 def _markSymbolizer(sl):
     shape = _symbolProperty(sl, "wellKnownName")
+    paint = {}
     if shape.startswith("file://"):
         svgFilename = shape.split("//")[-1]
         name = os.path.splitext(svgFilename)[0]
-        paint = {}
         paint["icon-image"] = name
         rotation = _symbolProperty(sl, "rotate")
         paint["icon-rotate"] = rotation
@@ -257,7 +247,6 @@ def _markSymbolizer(sl):
         outlineColor = _symbolProperty(sl, "strokeColor")
         outlineWidth = _symbolProperty(sl, "strokeWidth")
 
-        paint = {}
         paint["circle-radius"] = ["/", size, 2]
         paint["circle-color"] = color
         paint["circle-opacity"] = opacity
@@ -268,21 +257,17 @@ def _markSymbolizer(sl):
 
 
 def _fillSymbolizer(sl):
-    paint = {}
     opacity = _symbolProperty(sl, "opacity")
     color = sl.get("color", None)
     graphicFill = sl.get("graphicFill", None)
     if graphicFill is not None:
         _warnings.append("Marker fills not supported for Mapbox GL conversion")
         # TODO
-    paint["fill-opacity"] = opacity
+    paint = {"fill-opacity": opacity}
     if color is not None:
         paint["fill-color"] = color
 
     outlineColor = _symbolProperty(sl, "outlineColor")
-    if outlineColor is not None:
-        pass  # TODO
-
     return {"type": "fill", "paint": paint}
 
 
